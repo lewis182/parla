@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Parla — your Italian tutor</title>
+<!-- Add-to-Home-Screen (iPad/iPhone): opens fullscreen like an app -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Parla" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#D97757" />
+<link rel="apple-touch-icon" href="icon-180.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+<link rel="manifest" href="manifest.webmanifest" />
+<style>
+  /* Warm, minimal palette inspired by Claude: ivory ground, terracotta accent,
+     olive for "correct", serif for the Italian itself. */
+  :root {
+    --bg: #FAF9F5;          /* ivory */
+    --panel: #FFFFFF;
+    --tan: #F0EDE3;         /* warm tan for user bubbles / soft fills */
+    --border: #E5E2D6;
+    --text: #2D2A20;
+    --muted: #7A776A;
+    --accent: #D97757;      /* terracotta */
+    --accent-deep: #C05B3B;
+    --olive: #6E7F52;       /* success / corrections */
+    --gold: #C2A24B;        /* thinking */
+    --danger: #B3391F;
+    --radius: 16px;
+    --serif: ui-serif, Georgia, "Times New Roman", serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    padding: 16px 22px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+  .logo {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: var(--accent);
+    display: grid; place-items: center; font-size: 22px;
+    box-shadow: 0 2px 10px rgba(217,119,87,.25);
+  }
+  header h1 { font-size: 20px; margin: 0; font-family: var(--serif); font-weight: 600; letter-spacing: .2px; }
+  header p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+  .controls { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  select, button {
+    font: inherit; font-size: 13.5px; color: var(--text);
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px 12px; cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  select:hover, button:hover { border-color: var(--accent); }
+  .ghost { background: transparent; }
+  .toggle-on { border-color: var(--olive) !important; color: var(--olive); background: rgba(110,127,82,.08); }
+
+  main {
+    flex: 1; width: 100%; max-width: 760px; margin: 0 auto;
+    padding: 18px; display: flex; flex-direction: column; gap: 14px;
+  }
+  #chat { flex: 1; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; padding-bottom: 8px; }
+  .msg { display: flex; gap: 10px; max-width: 85%; }
+  .msg .bubble {
+    padding: 12px 15px; border-radius: 14px; line-height: 1.55;
+    background: var(--panel); border: 1px solid var(--border);
+    box-shadow: 0 1px 2px rgba(45,42,32,.04);
+  }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .msg.user .bubble { background: var(--tan); border-color: #E2DCC9; }
+  .it { font-size: 17px; font-family: var(--serif); }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .replay { background:none; border:none; cursor:pointer; font-size:13px; padding:0 2px 0 6px; opacity:.55; vertical-align:middle; }
+  .replay:hover { opacity:1; }
+  .ask-row { width:100%; max-width:480px; display:flex; gap:6px; justify-content:center; margin-top:6px; }
+  #askInput { flex:1; font:inherit; font-size:13.5px; padding:9px 12px; border-radius:10px; border:1px solid var(--border); background:var(--panel); color:var(--text); }
+  #askInput::placeholder { color: var(--muted); }
+  #askInput:focus { outline:none; border-color:var(--accent); box-shadow: 0 0 0 3px rgba(217,119,87,.12); }
+  .correction {
+    font-size: 13.5px; margin-top: 8px; padding: 8px 10px;
+    border-left: 3px solid var(--olive); background: rgba(110,127,82,.07); border-radius: 6px;
+  }
+  .correction b { color: var(--olive); }
+  .suggestion {
+    align-self: center; width: 100%; max-width: 600px;
+    font-size: 13.5px; padding: 10px 14px; margin-top: 2px;
+    border: 1px dashed var(--gold); background: rgba(194,162,75,.07); border-radius: 10px;
+  }
+  .suggestion .s-label { font-size: 11.5px; color: #9A7F35; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 3px; }
+  .suggestion .s-it { font-family: var(--serif); font-size: 15.5px; }
+  .suggestion .s-en { color: var(--muted); margin-top: 3px; font-size: 12.5px; }
+  .grammar-card {
+    align-self: stretch; font-size: 13.5px; padding: 12px 15px;
+    border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    background: var(--panel); border-radius: 10px; box-shadow: 0 1px 2px rgba(45,42,32,.04);
+  }
+  .grammar-card .g-label { font-size: 11.5px; color: var(--accent-deep); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
+  .grammar-card .g-body { white-space: pre-wrap; line-height: 1.6; }
+  .it .w { cursor: pointer; border-radius: 3px; }
+  .it .w:hover { background: rgba(217,119,87,.16); }
+  #wordPop {
+    position: fixed; z-index: 50; max-width: 270px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; font-size: 13px; box-shadow: 0 6px 24px rgba(45,42,32,.14);
+  }
+  #wordPop .wp-word { font-family: var(--serif); font-size: 16px; font-weight: 600; }
+  #wordPop .wp-mean { color: var(--muted); margin-top: 4px; }
+  .avatar { font-size: 20px; width: 36px; height: 36px; border-radius: 50%;
+    display: grid; place-items: center; background: var(--tan); border: 1px solid var(--border); flex: 0 0 auto; }
+
+  /* ---- avatar stage ---- */
+  #stage {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 6px 0 2px;
+  }
+  .face-ring {
+    width: 188px; height: 188px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: radial-gradient(circle at 50% 35%, #FFFFFF 0%, #F1EEE3 75%);
+    border: 3px solid var(--border); transition: border-color .25s, box-shadow .25s;
+    box-shadow: 0 2px 14px rgba(45,42,32,.06);
+  }
+  .face-ring.listening { border-color: var(--accent); box-shadow: 0 0 0 6px rgba(217,119,87,.14), 0 4px 24px rgba(217,119,87,.28); }
+  .face-ring.thinking  { border-color: var(--gold); box-shadow: 0 0 0 6px rgba(194,162,75,.13); }
+  .face-ring.speaking  { border-color: var(--olive); box-shadow: 0 0 0 6px rgba(110,127,82,.13), 0 4px 22px rgba(110,127,82,.25); }
+  #face { width: 170px; height: 170px; display: block; }
+  #face .blink { transform-box: fill-box; transform-origin: center; transition: transform .07s; }
+  .name-tag { font-size: 13px; color: var(--muted); }
+  .name-tag b { color: var(--text); font-family: var(--serif); }
+
+  .micbar { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 8px 0 4px; }
+  #mic {
+    width: 84px; height: 84px; border-radius: 50%; border: none;
+    background: var(--accent);
+    font-size: 34px; color: #fff; cursor: pointer;
+    box-shadow: 0 6px 20px rgba(217,119,87,.35); transition: transform .1s, background .15s;
+  }
+  #mic:hover { background: var(--accent-deep); }
+  #mic:active { transform: scale(.96); }
+  #mic.listening { animation: pulse 1.2s infinite; background: var(--accent-deep); }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(217,119,87,.45)} 70%{box-shadow:0 0 0 22px rgba(217,119,87,0)} 100%{box-shadow:0 0 0 0 rgba(217,119,87,0)} }
+  #status { font-size: 13px; color: var(--muted); min-height: 18px; }
+
+  .setup { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; box-shadow: 0 2px 12px rgba(45,42,32,.05); }
+  .setup h2 { margin: 0 0 6px; font-size: 18px; font-family: var(--serif); font-weight: 600; }
+  .setup p { color: var(--muted); font-size: 13px; margin: 6px 0; }
+  .setup input { width: 100%; font: inherit; padding: 11px 12px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text); margin: 8px 0; }
+  .setup input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(217,119,87,.12); }
+  .setup a { color: var(--accent-deep); }
+  .primary { background: var(--accent); border: none; font-weight: 600; color: #fff; }
+  .primary:hover { background: var(--accent-deep); }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .pill { font-size: 12px; color: var(--muted); }
+  .hidden { display: none !important; }
+  .err { color: var(--danger); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">🇮🇹</div>
+  <div>
+    <h1>Parla</h1>
+    <p>Speak Italian with your AI tutor, Giulia</p>
+  </div>
+  <div class="controls">
+    <span id="streak" class="pill" title="Streak · minutes practised today"></span>
+    <select id="topicSel" title="Conversation topic / scenario">
+      <optgroup label="Scenarios">
+        <option value="free" selected>💬 Free chat</option>
+        <option value="ristorante">🍝 Restaurant</option>
+        <option value="bar">☕ Bar / café</option>
+        <option value="shopping">🛍️ Shopping</option>
+        <option value="stazione">🚉 Train station</option>
+        <option value="indicazioni">🧭 Directions</option>
+      </optgroup>
+      <optgroup label="Grammar practice · A1">
+        <option value="g_presente">Present tense — daily life</option>
+        <option value="g_modali">Modal verbs — can/must/want</option>
+        <option value="g_imperativo">Imperative — instructions</option>
+        <option value="g_vorrei">Conditional — polite requests</option>
+        <option value="g_cessere">C'è / ci sono — what's there</option>
+        <option value="g_articoli">Articles — il/la/un/una</option>
+        <option value="g_riflessivi">Reflexive pronouns — routines</option>
+        <option value="g_domande">Question words — asking</option>
+        <option value="g_preposizioni">Prepositions — where things are</option>
+        <option value="g_aggettivi">Adjectives — describing</option>
+        <option value="g_avverbi">Adverbs — how/when/where</option>
+        <option value="g_negazione">Negation & yes/no questions</option>
+      </optgroup>
+      <optgroup label="Grammar practice · A2">
+        <option value="g_passato">Past tenses — what happened</option>
+        <option value="g_futuro">Future — plans</option>
+        <option value="g_reciproci">Reflexive & reciprocal verbs</option>
+        <option value="g_clitici">Clitic pronouns — lo/la/gli</option>
+        <option value="g_possessivi">Possessives & demonstratives</option>
+        <option value="g_relativi">Relative pronouns — che/cui</option>
+        <option value="g_partitivo">Partitives — some bread…</option>
+        <option value="g_geotempo">Places & time expressions</option>
+        <option value="g_comparativi">Comparatives — more/less/best</option>
+        <option value="g_prepavanzate">Prepositions — origin & quantity</option>
+      </optgroup>
+    </select>
+    <select id="level" title="Your level">
+      <option value="absolute beginner (A0)">A0 · Absolute beginner</option>
+      <option value="beginner (A1)" selected>A1 · Beginner</option>
+      <option value="elementary (A2)">A2 · Elementary</option>
+      <option value="intermediate (B1)">B1 · Intermediate</option>
+      <option value="upper-intermediate (B2)">B2 · Upper-int.</option>
+    </select>
+    <select id="modelSel" title="Tutor brain — smarter is more accurate, faster is quicker">
+      <option value="anthropic/claude-sonnet-4.5" selected>🧠 Smarter</option>
+      <option value="anthropic/claude-haiku-4.5">⚡ Faster</option>
+    </select>
+    <button id="resetBtn" class="ghost" title="Start a new conversation">↺ New</button>
+    <button id="keyBtn" class="ghost" title="Change API key">🔑</button>
+  </div>
+</header>
+
+<main>
+  <!-- First-run setup -->
+  <section id="setup" class="setup">
+    <h2>One-time setup</h2>
+    <p>Parla uses an AI model as the tutor's brain, reached through <b>OpenRouter</b>. Paste your OpenRouter API key to begin. It's stored only in this browser and sent only to OpenRouter.</p>
+    <p>Get a key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a> (add a little credit to the account first).</p>
+    <input id="keyInput" type="password" placeholder="sk-or-v1-..." autocomplete="off" />
+    <div class="row">
+      <button id="saveKey" class="primary">Save &amp; start</button>
+      <span id="keyErr" class="err"></span>
+    </div>
+  </section>
+
+  <!-- Avatar -->
+  <section id="stage" class="hidden">
+    <div id="faceRing" class="face-ring">
+      <svg id="face" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <!-- hair back -->
+        <path d="M40 95 Q35 30 100 28 Q165 30 160 95 L160 150 Q160 120 150 110 L150 80 Q100 55 50 80 L50 110 Q40 120 40 150 Z" fill="#5b3b2e"/>
+        <!-- neck -->
+        <rect x="86" y="135" width="28" height="34" rx="12" fill="#e8b48c"/>
+        <!-- face -->
+        <ellipse cx="100" cy="100" rx="50" ry="56" fill="#f2c4a0"/>
+        <!-- ears -->
+        <circle cx="50" cy="103" r="9" fill="#f2c4a0"/>
+        <circle cx="150" cy="103" r="9" fill="#f2c4a0"/>
+        <!-- cheeks -->
+        <ellipse cx="74" cy="116" rx="10" ry="6" fill="#f2a89a" opacity=".55"/>
+        <ellipse cx="126" cy="116" rx="10" ry="6" fill="#f2a89a" opacity=".55"/>
+        <!-- eyebrows -->
+        <path d="M68 80 Q80 74 92 79" stroke="#5b3b2e" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <path d="M108 79 Q120 74 132 80" stroke="#5b3b2e" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <!-- eyes (group scales vertically to blink) -->
+        <g id="eyes">
+          <g class="blink">
+            <ellipse cx="80" cy="93" rx="9" ry="11" fill="#fff"/>
+            <circle id="pupilL" cx="80" cy="94" r="5" fill="#3a2b22"/>
+            <circle cx="82" cy="91" r="1.6" fill="#fff"/>
+          </g>
+          <g class="blink">
+            <ellipse cx="120" cy="93" rx="9" ry="11" fill="#fff"/>
+            <circle id="pupilR" cx="120" cy="94" r="5" fill="#3a2b22"/>
+            <circle cx="122" cy="91" r="1.6" fill="#fff"/>
+          </g>
+        </g>
+        <!-- nose -->
+        <path d="M100 100 Q97 110 94 114 Q100 117 106 114" stroke="#d99c79" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <!-- mouth -->
+        <g>
+          <ellipse id="mouth" cx="100" cy="130" rx="14" ry="3" fill="#7a2e3a"/>
+          <ellipse id="tongue" cx="100" cy="132" rx="8" ry="1.5" fill="#e07a86" opacity="0"/>
+        </g>
+        <!-- hair front fringe -->
+        <path d="M52 78 Q60 50 100 50 Q140 50 148 78 Q120 62 100 64 Q80 62 52 78 Z" fill="#6b4636"/>
+      </svg>
+    </div>
+    <div class="name-tag"><b>Giulia</b> · <span id="avatarState">ready</span></div>
+  </section>
+
+  <!-- Chat -->
+  <div id="chat" class="hidden"></div>
+
+  <div id="micbar" class="micbar hidden">
+    <button id="mic" title="Tap to talk">🎤</button>
+    <div class="row" style="justify-content:center">
+      <button id="handsFreeBtn" class="ghost" title="Auto-listen after each reply — no clicking">🤝 Hands-free: Off</button>
+      <button id="correctBtn" class="ghost" title="Speak the corrected version of what you said back to you">✏️ Correct me: On</button>
+      <button id="suggestBtn" class="ghost" title="Show a suggested next phrase to keep the conversation moving">💡 Suggestions: On</button>
+      <button id="grammarBtn" class="ghost" title="Explain the key grammar points from this conversation">📖 Grammar</button>
+      <button id="reviewBtn" class="ghost" title="Review your saved words with spaced repetition">📇 Words</button>
+      <button id="reportBtn" class="ghost" title="Summary of this session: fixes, new words, practice time">📋 Report</button>
+    </div>
+    <div id="status">Tap the mic and say something in Italian — try “Ciao!”</div>
+    <div class="ask-row">
+      <input id="askInput" type="text" placeholder="How do you say… (type or 🎙 in English)" autocomplete="off" />
+      <button id="askMicBtn" class="ghost" title="Say the English word or phrase out loud">🎙 EN</button>
+      <button id="askBtn" class="ghost" title="Get the Italian for an English phrase">➡️ In Italian</button>
+    </div>
+  </div>
+</main>
+
+<div id="wordPop" class="hidden"></div>
+
+<script>
+/* ----------------------------------------------------------------------------
+   Parla — voice-only Italian tutor.  Browser does the listening (speech
+   recognition) and the talking (speech synthesis); Claude does the thinking.
+---------------------------------------------------------------------------- */
+
+const DEFAULT_MODEL = "anthropic/claude-sonnet-4.5";  // accurate Italian + translations. Switch to ⚡ Faster (haiku) in the header.
+const MAX_TURNS = 20;                                 // how much history to send to keep cost/latency low
+
+// Scenarios. "scene" steers the tutor's role; "opener" is Giulia's first line.
+const TOPICS = {
+  free:        { scene:"", opener:{ reply_it:"Ciao! Sono Giulia. Di cosa ti piacerebbe parlare oggi?", hint:"Hi! I'm Giulia. What would you like to talk about today?" } },
+  ristorante:  { scene:"Role-play: you are a friendly waiter at an Italian restaurant; the student is a customer having dinner. Arc: greet & seat them → take the food and drink order → check on the meal → offer dessert or coffee → the bill & goodbye. Twist to spring mid-scene: the dish they ordered has just run out (suggest today's special), or recommend something unexpected.", opener:{ reply_it:"Buonasera e benvenuto! Ha già scelto o le porto il menù?", hint:"Good evening and welcome! Have you chosen, or shall I bring you the menu?" } },
+  bar:         { scene:"Role-play: you are a barista at a busy Italian bar/café; the student is a customer. Arc: greet → take the drink order → offer something to eat → a little small talk about their day or plans → they pay & goodbye. Twist to spring mid-scene: the cornetti have just sold out (offer an alternative), or ask if they'll have it at the counter or at a table — the price differs!", opener:{ reply_it:"Buongiorno! Cosa le porto da bere?", hint:"Good morning! What can I get you to drink?" } },
+  shopping:    { scene:"Role-play: you are a shop assistant; the student is shopping for clothes or a gift. Arc: greet → find out what they need → sizes, colours, preferences → they try it / consider it → price & paying → goodbye. Twist to spring mid-scene: their size is out of stock (offer another colour or model), or there's a 2-for-1 offer they must decide on.", opener:{ reply_it:"Buongiorno! Posso aiutarla a trovare qualcosa?", hint:"Good morning! Can I help you find something?" } },
+  stazione:    { scene:"Role-play: you work at the ticket counter of an Italian train station; the student needs to travel. Arc: destination → departure times → ticket type (single/return, class) → price & platform → goodbye. Twist to spring mid-scene: the direct train is delayed or cancelled — offer an alternative with a change at Bologna and see how they cope.", opener:{ reply_it:"Buongiorno! Dove desidera andare oggi?", hint:"Good morning! Where would you like to go today?" } },
+  indicazioni: { scene:"Role-play: you are a friendly local in an Italian town; the student is lost and needs directions. Arc: find out where they're going → give simple directions with landmarks → check they've understood (ask them to repeat the route back!) → wish them well. Twist to spring mid-scene: the usual road is closed for a street market — reroute them, or walk part of the way together chatting.", opener:{ reply_it:"Certo, posso aiutarla! Dove deve andare?", hint:"Of course, I can help! Where do you need to go?" } },
+
+  /* ---- Grammar practice · A1 — everyday-Italy conversations that force the target grammar ---- */
+  g_presente:   { scene:"Grammar coaching: PRESENT INDICATIVE (regular verbs + essere/avere). Setting: chatting with a new Italian friend about daily life — where the student lives, works, eats, what they do each day. Ask questions that require io/tu forms (abito, lavoro, mangio, sono, ho). When they misconjugate, model the right form and invite them to retry.", opener:{ reply_it:"Parliamo della tua giornata! Dove abiti e cosa fai ogni giorno?", hint:"Let's talk about your day! Where do you live and what do you do every day?" } },
+  g_modali:     { scene:"Grammar coaching: MODAL VERBS in the present (potere, dovere, volere). Setting: the student is a guest at an Italian hotel asking what they can do, must do, and want to do (Posso pagare…? Devo lasciare la chiave? Voglio prenotare…). Ask questions that force posso/devo/voglio and their tu/Lei forms.", opener:{ reply_it:"Benvenuto in hotel! Cosa vuole fare oggi: vuole visitare la città?", hint:"Welcome to the hotel! What do you want to do today — do you want to visit the city?" } },
+  g_imperativo: { scene:"Grammar coaching: IMPERATIVE (tu, Lei, noi). Setting: exchanging instructions and directions in town — the student both receives directions (Vada dritto, giri a destra) and gives them (Prendi la prima a sinistra). Have them practise polite Lei commands and friendly tu commands.", opener:{ reply_it:"Facciamo pratica con le indicazioni! Come arrivo alla stazione? Dimmi tu!", hint:"Let's practise directions! How do I get to the station? You tell me!" } },
+  g_vorrei:     { scene:"Grammar coaching: SIMPLE CONDITIONAL for politeness (vorrei, mi piacerebbe, potrebbe). Setting: ordering and requesting things politely around town — café, gelateria, shop, pharmacy. Encourage 'vorrei un…', 'potrebbe darmi…?' instead of blunt forms; contrast voglio vs vorrei.", opener:{ reply_it:"Buongiorno! Sono la barista. Cosa vorrebbe ordinare oggi?", hint:"Good morning! I'm the barista. What would you like to order today?" } },
+  g_cessere:    { scene:"Grammar coaching: C'È / CI SONO. Setting: the student has just arrived in a small Italian town and asks what there is — C'è una farmacia? Ci sono ristoranti? You answer as a local and ask them what there is in their own town, forcing both singular and plural.", opener:{ reply_it:"Benvenuto nel mio paese! Cosa vuoi sapere: c'è qualcosa che cerchi?", hint:"Welcome to my town! What do you want to know — is there something you're looking for?" } },
+  g_articoli:   { scene:"Grammar coaching: DEFINITE & INDEFINITE ARTICLES (il/lo/la/i/gli/le, un/uno/una). Setting: shopping at an Italian open-air market — naming fruits, vegetables, items with the right article (il pane, la mela, gli spinaci, un'arancia). Gently drill gender/number through what they buy.", opener:{ reply_it:"Benvenuto al mercato! Cosa le serve oggi: la frutta o la verdura?", hint:"Welcome to the market! What do you need today — fruit or vegetables?" } },
+  g_riflessivi: { scene:"Grammar coaching: PERSONAL & REFLEXIVE PRONOUNS (mi alzo, mi lavo, ti svegli). Setting: comparing morning and evening routines with a friend. Ask what time they wake up, get dressed, relax — forcing reflexive forms, and share yours back.", opener:{ reply_it:"Parliamo delle abitudini! A che ora ti svegli la mattina?", hint:"Let's talk about habits! What time do you wake up in the morning?" } },
+  g_domande:    { scene:"Grammar coaching: INTERROGATIVES (chi, cosa, dove, quando, perché, quanto, quale, come). Setting: the student is a curious tourist interviewing a local (you) about the town, food and festivals. Push them to ask varied questions; correct malformed ones and have them re-ask.", opener:{ reply_it:"Sono del posto: chiedimi tutto sulla mia città! Cosa vuoi sapere?", hint:"I'm a local — ask me anything about my town! What do you want to know?" } },
+  g_preposizioni:{ scene:"Grammar coaching: SIMPLE & ARTICULATED PREPOSITIONS (a, in, di, da, su + articles: al, alla, nel, sulla…). Setting: describing where things are in town and how to move between them — Vado al bar, il museo è nella piazza. Ask where things are in their town too.", opener:{ reply_it:"Dove andiamo oggi? Al bar, alla stazione o nel centro storico?", hint:"Where shall we go today? To the bar, the station, or the old town?" } },
+  g_aggettivi:  { scene:"Grammar coaching: ADJECTIVES (qualifiers, possessives, demonstratives, numerals) with agreement. Setting: describing things while shopping and talking about family — questa giacca rossa, il mio fratello alto, due caffè. Push agreement in gender and number; correct mismatches.", opener:{ reply_it:"Descrivimi qualcosa! Com'è la tua casa o la tua famiglia?", hint:"Describe something to me! What is your house or your family like?" } },
+  g_avverbi:    { scene:"Grammar coaching: ADVERBS of manner, place and time (bene, male, spesso, sempre, qui, lì, presto, tardi). Setting: chatting about habits and lifestyle in Italy — how often they do things, when, and how well. Ask questions that elicit adverbs and offer better ones.", opener:{ reply_it:"Quanto spesso mangi fuori: sempre, spesso o quasi mai?", hint:"How often do you eat out — always, often, or almost never?" } },
+  g_negazione:  { scene:"Grammar coaching: NEGATION & YES/NO QUESTIONS (non, non…mai, non…niente, nessuno). Setting: at a tourist information desk sorting out misunderstandings — the student confirms and denies things (No, non ho una prenotazione; Non mangio mai carne). Ask yes/no questions they must answer in full sentences.", opener:{ reply_it:"Ufficio turistico, buongiorno! Ha una prenotazione con noi?", hint:"Tourist office, good morning! Do you have a booking with us?" } },
+
+  /* ---- Grammar practice · A2 ---- */
+  g_passato:    { scene:"Grammar coaching: PASSATO PROSSIMO vs IMPERFETTO. Setting: telling a friend about yesterday and about a recent trip in Italy — what happened (sono andato, ho mangiato) versus how things were (era bello, c'era il sole, faceva caldo). Ask follow-ups that force both tenses and highlight the contrast when correcting.", opener:{ reply_it:"Raccontami di ieri! Cosa hai fatto e com'era la giornata?", hint:"Tell me about yesterday! What did you do, and what was the day like?" } },
+  g_futuro:     { scene:"Grammar coaching: SIMPLE FUTURE (andrò, farò, sarà). Setting: planning the student's next weekend or next trip to Italy — where they will go, what they will see and eat. Push future forms; when they slip into the present, model the future version.", opener:{ reply_it:"Facciamo progetti! Cosa farai il prossimo fine settimana?", hint:"Let's make plans! What will you do next weekend?" } },
+  g_reciproci:  { scene:"Grammar coaching: REFLEXIVE & RECIPROCAL VERBS (vedersi, incontrarsi, sentirsi, aiutarsi). Setting: talking about friendships and meeting people in Italy — Ci vediamo domani? Vi sentite spesso? Elicit ci/vi/si forms about the student's friends and family.", opener:{ reply_it:"Parliamo di amici! Tu e i tuoi amici vi vedete spesso?", hint:"Let's talk about friends! Do you and your friends see each other often?" } },
+  g_clitici:    { scene:"Grammar coaching: CLITIC & TONIC PRONOUNS (lo, la, li, le, gli, le, ne; me, te). Setting: at a shop deciding what to buy — Lo prendo! La vuole? Ne prendo due. Ask questions whose natural answers need object pronouns, and recast their answers with the pronoun when they avoid it.", opener:{ reply_it:"Le piace questa borsa? La prende o vuole vederne un'altra?", hint:"Do you like this bag? Will you take it, or do you want to see another one?" } },
+  g_possessivi: { scene:"Grammar coaching: POSSESSIVE & DEMONSTRATIVE PRONOUNS (il mio, la tua, questo, quello). Setting: comparing belongings and choices in a clothes shop — Questo è il mio, quello è più bello. Elicit questo/quello contrasts and possessives with and without nouns.", opener:{ reply_it:"Guarda queste giacche: preferisci questa qui o quella lì?", hint:"Look at these jackets: do you prefer this one here or that one there?" } },
+  g_relativi:   { scene:"Grammar coaching: INDEFINITE & RELATIVE PRONOUNS (che, cui, chi, qualcosa, qualcuno, niente). Setting: describing people and places — Il ristorante che preferisco, la città in cui vivo, qualcuno che conosco. Ask for descriptions that require che/cui and indefinite pronouns.", opener:{ reply_it:"Descrivimi un posto che ami e una persona che conosci bene!", hint:"Describe to me a place you love and a person you know well!" } },
+  g_partitivo:  { scene:"Grammar coaching: PARTITIVE ARTICLES (del, della, dei, delle; un po' di). Setting: food shopping at an alimentari for a picnic — Vorrei del pane, delle olive, un po' di formaggio. You are the shopkeeper; ask what they need until they've 'bought' a full picnic using partitives.", opener:{ reply_it:"Buongiorno! Prepara un picnic? Cosa le do: del pane, del formaggio?", hint:"Good morning! Preparing a picnic? What shall I get you — some bread, some cheese?" } },
+  g_geotempo:   { scene:"Grammar coaching: ARTICLES with GEOGRAPHIC NAMES & TIME EXPRESSIONS (in Italia, a Roma, la Sicilia, il lunedì, in estate, alle otto). Setting: planning a tour of Italy through the seasons — regions, cities, days and times. Correct missing/wrong articles with places and times.", opener:{ reply_it:"Organizziamo un viaggio in Italia! In quale regione vuoi andare e in quale stagione?", hint:"Let's plan a trip in Italy! Which region do you want to go to, and in which season?" } },
+  g_comparativi:{ scene:"Grammar coaching: COMPARATIVES & SUPERLATIVES (più…di, meno…che, il più, buonissimo, migliore/peggiore). Setting: friendly debate comparing Italian cities, foods and coffee — Roma è più grande di Firenze, il gelato migliore. Provoke comparisons and superlatives with fun either/or questions.", opener:{ reply_it:"Secondo te, è più bella Roma o Venezia? E qual è il cibo italiano migliore?", hint:"In your opinion, is Rome or Venice more beautiful? And what's the best Italian food?" } },
+  g_prepavanzate:{ scene:"Grammar coaching: PREPOSITIONS of possession, origin, manner and quantity (di Maria, vengo da Londra, di fretta, un chilo di mele). Setting: introducing yourself at a market and doing the shopping — where you're from, whose things are whose, and quantities (un etto di, mezzo chilo di). Elicit di/da/a in these roles.", opener:{ reply_it:"Buongiorno! Di dove sei? E cosa ti serve oggi: un chilo di pomodori?", hint:"Good morning! Where are you from? And what do you need today — a kilo of tomatoes?" } },
+};
+let topic = localStorage.getItem("parla_topic") || "free";
+let correctMe = localStorage.getItem("parla_correct") !== "0";   // default on
+let suggestOn = localStorage.getItem("parla_suggest") !== "0";   // 💡 suggested next phrase, default on
+let practiced = new Set(JSON.parse(localStorage.getItem("parla_practiced") || "[]"));  // grammar topics done (✓)
+let turnsThisTopic = 0;              // your turns in the current conversation
+let recordMode = "chat";             // 'chat' | 'practice' (repeat) | 'askEN' (speak English) | 'recall' (review/drill)
+let practiceTarget = null;           // the Italian phrase being practised
+
+/* ---- vocabulary notebook (spaced repetition), streak stats, session log ---- */
+let vocab = JSON.parse(localStorage.getItem("parla_vocab") || "[]");   // [{it,en,added,due,interval,reps}]
+let stats = JSON.parse(localStorage.getItem("parla_stats") || "{}");   // { "2026-07-03": minutes }
+let session = { corrections: [], words: [], turns: 0 };                // this sitting only
+let lastActivity = 0;
+let recallQueue = [], recallCurrent = null, recallKind = null, recallTotal = 0, recallScore = 0;
+
+const el = (id) => document.getElementById(id);
+const chatEl = el("chat"), statusEl = el("status"), micEl = el("mic");
+
+/* ---------- avatar (Giulia's face) ---------- */
+const Avatar = (() => {
+  const ring = () => el("faceRing");
+  const mouth = () => el("mouth");
+  const tongue = () => el("tongue");
+  const stateLabel = () => el("avatarState");
+  let mouthTimer = null;
+
+  function setState(s) {
+    const r = ring(); if (!r) return;
+    r.classList.remove("listening", "thinking", "speaking");
+    if (s !== "idle") r.classList.add(s);
+    const labels = { idle: "ready", listening: "listening…", thinking: "thinking…", speaking: "speaking" };
+    if (stateLabel()) stateLabel().textContent = labels[s] || "ready";
+  }
+
+  // blink loop
+  function blink() {
+    document.querySelectorAll("#eyes .blink").forEach(g => {
+      g.style.transform = "scaleY(0.1)";
+      setTimeout(() => { g.style.transform = "scaleY(1)"; }, 110);
+    });
+  }
+  function scheduleBlink() {
+    setTimeout(() => { blink(); scheduleBlink(); }, 2200 + Math.random() * 2800);
+  }
+
+  // gentle idle eye drift
+  function scheduleGaze() {
+    setTimeout(() => {
+      const dx = (Math.random() * 4 - 2);
+      const l = el("pupilL"), rr = el("pupilR");
+      if (l && rr) { l.setAttribute("cx", 80 + dx); rr.setAttribute("cx", 120 + dx); }
+      scheduleGaze();
+    }, 1800 + Math.random() * 2600);
+  }
+
+  function startTalking() {
+    setState("speaking");
+    if (mouthTimer) clearInterval(mouthTimer);
+    mouthTimer = setInterval(() => {
+      const open = 2 + Math.random() * 9;        // ry: how open
+      const wide = 11 + Math.random() * 6;       // rx: how wide
+      mouth().setAttribute("ry", open.toFixed(1));
+      mouth().setAttribute("rx", wide.toFixed(1));
+      mouth().setAttribute("cy", (130 - open * 0.3).toFixed(1));
+      tongue().setAttribute("opacity", open > 7 ? "0.8" : "0");
+    }, 110);
+  }
+  function stopTalking() {
+    if (mouthTimer) { clearInterval(mouthTimer); mouthTimer = null; }
+    mouth().setAttribute("ry", "3");
+    mouth().setAttribute("rx", "14");
+    mouth().setAttribute("cy", "130");
+    tongue().setAttribute("opacity", "0");
+    setState("idle");
+  }
+
+  let started = false;
+  function start() { if (started) return; started = true; scheduleBlink(); scheduleGaze(); }
+  return { setState, startTalking, stopTalking, start };
+})();
+
+let apiKey = localStorage.getItem("parla_or_key") || "";
+let model = localStorage.getItem("parla_model") || DEFAULT_MODEL;
+let history = [];          // [{role:'user'|'assistant', content:'...'}]
+let recognizing = false;
+let itVoice = null;
+
+/* ---------- voices (text-to-speech) ---------- */
+function pickItalianVoice() {
+  const voices = speechSynthesis.getVoices();
+  itVoice = voices.find(v => /it[-_]IT/i.test(v.lang)) || voices.find(v => /^it/i.test(v.lang)) || null;
+}
+speechSynthesis.onvoiceschanged = pickItalianVoice;
+pickItalianVoice();
+
+function cleanItalian(text) {
+  // Voice ONLY the Italian: strip any leaked label / English / correction / suggestion text.
+  return String(text || "").replace(/^\s*IT:\s*/i, "").split(/\s*(?:EN|FIX|SUG)\s*:/i)[0].trim();
+}
+
+// Speak one or more Italian phrases in order. The mouth animates throughout and
+// hands-free only resumes after the LAST phrase. parts: [{ text, rate }].
+let _utterRefs = [];        // hold references: browsers GC utterances and then never fire onend
+let _speakAbandon = null;   // lets a newer speakParts silence an older one's callbacks
+
+function speakParts(parts, opts) {
+  const autoListen = !opts || opts.autoListen !== false;   // replay buttons pass {autoListen:false}
+  const onDone = opts && opts.onDone;                      // e.g. start listening for a repeat
+  if (_speakAbandon) _speakAbandon();                      // an older sequence must never fire its onDone now
+  speechSynthesis.cancel();
+  const items = parts.map(p => ({ text: cleanItalian(p.text), rate: p.rate || 0.95 })).filter(p => p.text);
+  const done = () => { _speakAbandon = null; Avatar.stopTalking(); if (onDone) onDone(); else if (autoListen) maybeAutoListen(); };
+  if (!items.length) { done(); return; }
+
+  let abandoned = false;
+  _speakAbandon = () => { abandoned = true; };
+  Avatar.startTalking();
+
+  // Speak phrases ONE AT A TIME. Each has its own onend + watchdog, so we never
+  // mistake the gap between phrases for the end of the sequence, and a lost onend
+  // event (Edge/Chrome bug) can't stall the chain.
+  let idx = 0;
+  const speakOne = () => {
+    if (abandoned) return;
+    if (idx >= items.length) { done(); return; }
+    const p = items[idx++];
+    const u = new SpeechSynthesisUtterance(p.text);
+    u.lang = "it-IT";
+    if (itVoice) u.voice = itVoice;
+    u.rate = p.rate;
+    _utterRefs = [u];                       // keep a live reference (prevents GC losing onend)
+
+    let advanced = false, watch = null, sawSpeaking = false;
+    const t0 = Date.now();
+    const next = () => {
+      if (advanced || abandoned) return;
+      advanced = true;
+      if (watch) clearInterval(watch);
+      speakOne();
+    };
+    u.onend = next;
+    u.onerror = next;
+    speechSynthesis.speak(u);
+    watch = setInterval(() => {
+      if (abandoned) { clearInterval(watch); return; }
+      if (speechSynthesis.speaking || speechSynthesis.pending) { sawSpeaking = true; return; }
+      if (sawSpeaking || Date.now() - t0 > 2500) next();   // finished, or never started → move on
+    }, 250);
+  };
+  speakOne();
+}
+function speak(text) { speakParts([{ text }]); }
+
+// 🔊 normal + 🐢 slow replay buttons for an Italian phrase (never resumes hands-free).
+function makeReplay(text) {
+  const wrap = document.createElement("span");
+  const b = document.createElement("button");
+  b.className = "replay";
+  b.title = "Hear it again";
+  b.textContent = "🔊";
+  b.addEventListener("click", () => speakParts([{ text }], { autoListen: false }));
+  const slow = document.createElement("button");
+  slow.className = "replay";
+  slow.title = "Hear it slowly";
+  slow.textContent = "🐢";
+  slow.addEventListener("click", () => speakParts([{ text, rate: 0.65 }], { autoListen: false }));
+  wrap.appendChild(b);
+  wrap.appendChild(slow);
+  return wrap;
+}
+
+// Start listening for the student to repeat a phrase.
+let practiceAttempts = 0;
+let resumeAfterPractice = false;   // true = this drill sits inside the conversation; resume chat when done
+function beginPractice(target) {
+  if (recognizing) return;
+  if (micEl.disabled) { setTimeout(() => beginPractice(target), 200); return; }   // mic busy for a beat — retry
+  practiceTarget = target;
+  recordMode = "practice";
+  startRecording();
+}
+
+// A "say it back" button: records you repeating the phrase, then checks you.
+function makePracticeBtn(target, label = "🎤 Say it back") {
+  const b = document.createElement("button");
+  b.className = "replay";
+  b.title = "Repeat the phrase out loud — I'll check you";
+  b.textContent = label;
+  b.addEventListener("click", () => {
+    if (recognizing) return;
+    speechSynthesis.cancel();
+    practiceAttempts = 0;
+    resumeAfterPractice = false;   // manual drill — don't auto-resume the chat afterwards
+    beginPractice(target);
+  });
+  return b;
+}
+
+/* ---- compare what you said with the target phrase ---- */
+function normalizePhrase(s) {
+  return String(s || "").toLowerCase().replace(/[^\p{L}\p{N}\s']/gu, " ").replace(/\s+/g, " ").trim();
+}
+function charSim(a, b) {             // 1 = identical strings (character Levenshtein)
+  if (!a || !b) return 0;
+  const m = a.length, n = b.length;
+  const d = Array.from({ length: m + 1 }, (_, i) => { const r = new Array(n + 1).fill(0); r[0] = i; return r; });
+  for (let j = 1; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return 1 - d[m][n] / Math.max(m, n);
+}
+// Word-level score: each wrong word counts. A near-miss word ("favori"~"favore")
+// costs half, so small slips aren't as harsh as missing words entirely.
+function similarity(a, b) {
+  const wa = a.split(" ").filter(Boolean), wb = b.split(" ").filter(Boolean);
+  if (!wa.length || !wb.length) return 0;
+  const m = wa.length, n = wb.length;
+  const d = Array.from({ length: m + 1 }, (_, i) => { const r = new Array(n + 1).fill(0); r[0] = i; return r; });
+  for (let j = 1; j <= n; j++) d[0][j] = j;
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++) {
+      const cost = wa[i - 1] === wb[j - 1] ? 0 : (charSim(wa[i - 1], wb[j - 1]) >= 0.75 ? 0.5 : 1);
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+    }
+  return 1 - d[m][n] / Math.max(m, n);
+}
+
+function finishPractice(heard) {
+  const target = practiceTarget;
+  practiceTarget = null;
+  addMessage("user", { it: heard });
+  bumpActivity();
+  const score = similarity(normalizePhrase(heard), normalizePhrase(target));
+  if (score >= 0.9) {
+    const resume = resumeAfterPractice; resumeAfterPractice = false;
+    addMessage("assistant", { it: "Perfetto! 👏", hint: "Spot on — that's it!" });
+    speakParts([{ text: "Perfetto!" }], { autoListen: resume });   // hands-free: conversation resumes by itself
+    setStatus(resume ? "Perfetto! Now answer Giulia — " + (handsFree ? "she's listening." : "tap the mic.") : "Nailed it — keep going!");
+    return;
+  }
+  // Not right yet: say the correct version, then automatically listen for the retry
+  // (up to 3 goes, so you're never stuck in a loop).
+  practiceAttempts++;
+  let retry;
+  if (practiceAttempts < 3) {
+    retry = { autoListen: false, onDone: () => beginPractice(target) };
+  } else {
+    const resume = resumeAfterPractice; resumeAfterPractice = false;
+    retry = { autoListen: resume };
+    setStatus("Good effort — we'll come back to that one. " + (resume ? (handsFree ? "Now answer Giulia — she's listening." : "Now answer Giulia — tap the mic.") : "Carry on!"));
+  }
+  if (score >= 0.55) {
+    addMessage("assistant", { it: "Quasi! Riprova.", hint: "Almost! Listen — then say it again, I'm listening.", correction: target });
+    speakParts([{ text: "Quasi! Si dice:" }, { text: target, rate: 0.8 }], retry);
+  } else {
+    addMessage("assistant", { it: "Riproviamo insieme.", hint: "Let's try again together — listen, then repeat.", correction: target });
+    speakParts([{ text: target, rate: 0.75 }], retry);
+  }
+}
+
+/* ---------- vocabulary notebook + spaced repetition ---------- */
+function persistVocab() { localStorage.setItem("parla_vocab", JSON.stringify(vocab)); }
+function vocabDue() { const now = Date.now(); return vocab.filter(v => v.due <= now); }
+
+// Save a word/phrase. Corrections and lookups call this automatically.
+function saveVocabItem(it, en) {
+  it = String(it || "").trim();
+  if (!it) return false;
+  const key = normalizePhrase(it);
+  const existing = vocab.find(v => normalizePhrase(v.it) === key);
+  if (existing) { if (en && !existing.en) { existing.en = en; persistVocab(); } return false; }
+  const item = { it, en: en || "", added: Date.now(), due: Date.now(), interval: 0, reps: 0 };
+  vocab.push(item);
+  persistVocab();
+  if (!session.words.includes(it)) session.words.push(it);
+  paintReviewBtn();
+  if (!en) fetchEnFor(item);       // fill in the English quietly in the background
+  return true;
+}
+async function fetchEnFor(item) {
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json", "authorization": "Bearer " + apiKey },
+      body: JSON.stringify({ model: model, max_tokens: 100, messages: [
+        { role: "system", content: "Translate the Italian into natural English. Reply with ONLY the translation." },
+        { role: "user", content: item.it },
+      ]}),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const t = (data.choices?.[0]?.message?.content || "").trim();
+    if (t) { item.en = t; persistVocab(); }
+  } catch {}
+}
+// Spaced repetition: right → interval grows (1, 3, 8, 20… days); wrong → back in 10 minutes.
+function srsGot(item)    { item.reps++; item.interval = item.interval ? Math.round(item.interval * 2.5) : 1; item.due = Date.now() + item.interval * 86400000; persistVocab(); paintReviewBtn(); }
+function srsMissed(item) { item.interval = 0; item.due = Date.now() + 10 * 60000; persistVocab(); paintReviewBtn(); }
+function paintReviewBtn() {
+  const n = vocabDue().length;
+  const b = el("reviewBtn");
+  if (b) b.textContent = n ? `📇 Review (${n})` : "📇 Words";
+}
+
+/* ---------- streak & minutes ---------- */
+function todayKey() { return new Date().toISOString().slice(0, 10); }
+function bumpActivity() {
+  const now = Date.now();
+  const add = lastActivity ? Math.min(now - lastActivity, 120000) : 30000;   // cap gaps at 2 min
+  lastActivity = now;
+  const k = todayKey();
+  stats[k] = (stats[k] || 0) + add / 60000;
+  localStorage.setItem("parla_stats", JSON.stringify(stats));
+  paintStreak();
+}
+function minutesToday() { return Math.round(stats[todayKey()] || 0); }
+function streakDays() {
+  let n = 0;
+  const d = new Date();
+  for (;;) {
+    const k = d.toISOString().slice(0, 10);
+    if ((stats[k] || 0) >= 1) { n++; d.setDate(d.getDate() - 1); }
+    else if (k === todayKey()) { d.setDate(d.getDate() - 1); }   // an empty "today" doesn't break the streak
+    else break;
+  }
+  return n;
+}
+function paintStreak() {
+  const s = el("streak");
+  if (s) s.textContent = `🔥 ${streakDays()} · ${minutesToday()} min`;
+}
+
+/* ---------- recall engine: vocabulary review + pattern drills ---------- */
+function startRecall(items, kind) {
+  if (recognizing || !items.length) return;
+  speechSynthesis.cancel();
+  recallQueue = items.slice();
+  recallKind = kind;
+  recallTotal = items.length;
+  recallScore = 0;
+  nextRecall();
+}
+function nextRecall() {
+  recallCurrent = recallQueue.shift() || null;
+  if (!recallCurrent) {
+    const msg = recallKind === "drill" ? `Pattern drilled — ${recallScore}/${recallTotal}!` : `Review done — ${recallScore}/${recallTotal} right.`;
+    recallKind = null;
+    addMessage("assistant", { it: "Ottimo lavoro!", hint: msg });
+    speakParts([{ text: "Ottimo lavoro!" }], { autoListen: false });
+    setStatus(msg + "  Carry on with the conversation whenever you like.");
+    return;
+  }
+  addMessage("assistant", { it: "", hint: (recallKind === "drill" ? "🔁 Now say: " : "📇 How do you say: ") + recallCurrent.en });
+  beginRecall();
+}
+function beginRecall() {
+  if (micEl.disabled) return;
+  recordMode = "recall";
+  startRecording();
+}
+function finishRecall(heard) {
+  const cur = recallCurrent;
+  if (!cur) return;
+  addMessage("user", { it: heard });
+  const score = similarity(normalizePhrase(heard), normalizePhrase(cur.it));
+  bumpActivity();
+  if (score >= 0.8) {
+    recallScore++;
+    if (cur.ref) srsGot(cur.ref);
+    addMessage("assistant", { it: "Perfetto! 👏", hint: "That's it!" });
+    speakParts([{ text: "Perfetto!" }], { autoListen: false, onDone: nextRecall });
+  } else {
+    if (cur.ref) srsMissed(cur.ref);
+    addMessage("assistant", { it: "", hint: "Not quite — it's:", correction: cur.it });
+    speakParts([{ text: cur.it, rate: 0.8 }], { autoListen: false, onDone: nextRecall });
+  }
+}
+function abortRecall(msg) {
+  if (!recallKind) return;
+  recallQueue = [];
+  recallKind = null;
+  recallCurrent = null;
+  if (msg) setStatus(msg);
+}
+
+// 🔁 variations of a sentence pattern, e.g. "vorrei un caffè" → table / bill / ticket
+async function makeVariations(sentence) {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json", "authorization": "Bearer " + apiKey },
+    body: JSON.stringify({ model: model, max_tokens: 250, messages: [
+      { role: "system", content: "The user gives an Italian sentence. Create 3 SHORT variations that reuse the same sentence pattern but swap the key content word(s), suitable for a beginner. Reply with EXACTLY 3 lines, each formatted as: English cue | Italian sentence. Nothing else." },
+      { role: "user", content: sentence },
+    ]}),
+  });
+  if (!res.ok) { const b = await res.text(); throw new Error(`${res.status}: ${b.slice(0, 120)}`); }
+  const data = await res.json();
+  const raw = (data.choices?.[0]?.message?.content || "").trim();
+  return raw.split("\n").map(l => {
+    const p = l.split("|");
+    return p.length >= 2 ? { en: p[0].replace(/^[\s\d.•-]+/, "").trim(), it: p[1].trim() } : null;
+  }).filter(Boolean).slice(0, 3);
+}
+function makeDrillBtn(sentence) {
+  const b = document.createElement("button");
+  b.className = "replay";
+  b.title = "Practise variations of this pattern";
+  b.textContent = "🔁 Drill";
+  b.addEventListener("click", async () => {
+    if (recognizing) return;
+    speechSynthesis.cancel();
+    b.disabled = true; b.textContent = "🔁 …";
+    try {
+      const vars = await makeVariations(sentence);
+      if (vars.length) startRecall(vars, "drill");
+      else setStatus("Couldn't make variations for that one.");
+    } catch (e) { setStatus("Drill failed: " + e.message); }
+    b.disabled = false; b.textContent = "🔁 Drill";
+  });
+  return b;
+}
+
+/* ---------- UI helpers ---------- */
+function addMessage(role, { it, hint, correction }) {
+  const wrap = document.createElement("div");
+  wrap.className = "msg " + role;
+  const avatar = document.createElement("div");
+  avatar.className = "avatar";
+  avatar.textContent = role === "user" ? "🙂" : "👩‍🏫";
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.innerHTML = `<div class="it"></div>`;
+  const itDiv = bubble.querySelector(".it");
+  if (role === "assistant" && it) {
+    wordify(itDiv, it);                                                // tap any word to look it up
+    itDiv.appendChild(makeReplay(it));                                 // 🔊/🐢 hear it again
+  } else {
+    itDiv.textContent = it || "";
+  }
+  if (correction) {
+    const c = document.createElement("div");
+    c.className = "correction";
+    c.innerHTML = `<b>✏️ Say:</b> `;
+    c.appendChild(document.createTextNode(correction));
+    c.appendChild(makeReplay(correction));                            // 🔊/🐢 hear the correct pronunciation
+    c.appendChild(makePracticeBtn(correction));                       // 🎤 then say it back for a check
+    c.appendChild(makeDrillBtn(correction));                          // 🔁 drill variations of the pattern
+    bubble.appendChild(c);
+  }
+  if (hint) {
+    const h = document.createElement("div");
+    h.className = "hint";
+    h.textContent = hint;
+    bubble.appendChild(h);
+  }
+  wrap.appendChild(avatar);
+  wrap.appendChild(bubble);
+  chatEl.appendChild(wrap);
+  chatEl.scrollTop = chatEl.scrollHeight;
+  return bubble;
+}
+
+function setStatus(t) { statusEl.textContent = t; }
+
+// Wrap each word of an Italian sentence in a clickable span.
+function wordify(div, sentence) {
+  div.textContent = "";
+  div.dataset.sentence = sentence;
+  sentence.split(/(\p{L}[\p{L}']*)/gu).forEach(tok => {
+    if (/^\p{L}/u.test(tok)) {
+      const s = document.createElement("span");
+      s.className = "w";
+      s.textContent = tok;
+      div.appendChild(s);
+    } else if (tok) {
+      div.appendChild(document.createTextNode(tok));
+    }
+  });
+}
+
+/* ---------- tap-a-word popover: meaning + save to notebook ---------- */
+async function wordMeaning(word, sentence) {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json", "authorization": "Bearer " + apiKey },
+    body: JSON.stringify({ model: model, max_tokens: 60, messages: [
+      { role: "system", content: "Give the English meaning of the Italian word as used in the sentence. Reply with ONLY the meaning, max 6 words." },
+      { role: "user", content: `Word: ${word}\nSentence: ${sentence}` },
+    ]}),
+  });
+  if (!res.ok) throw new Error("lookup failed");
+  const data = await res.json();
+  return (data.choices?.[0]?.message?.content || "").trim();
+}
+
+async function showWordPop(wEl) {
+  const pop = el("wordPop");
+  const word = wEl.textContent;
+  const host = wEl.closest(".it");
+  const sentence = host && host.dataset ? (host.dataset.sentence || "") : "";
+  const r = wEl.getBoundingClientRect();
+  pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 290)) + "px";
+  pop.style.top = Math.min(r.bottom + 6, window.innerHeight - 140) + "px";
+  pop.innerHTML = "";
+  const head = document.createElement("div");
+  head.className = "wp-word";
+  head.textContent = word;
+  head.appendChild(makeReplay(word));
+  const mean = document.createElement("div");
+  mean.className = "wp-mean";
+  mean.textContent = "…";
+  const save = document.createElement("button");
+  save.className = "ghost";
+  save.style.marginTop = "8px";
+  save.textContent = "＋ Save to my words";
+  pop.appendChild(head); pop.appendChild(mean); pop.appendChild(save);
+  pop.classList.remove("hidden");
+  let m = "";
+  try { m = await wordMeaning(word, sentence); } catch { m = "(couldn't look that up)"; }
+  mean.textContent = m;
+  save.addEventListener("click", () => {
+    saveVocabItem(word.toLowerCase(), m.startsWith("(") ? "" : m);
+    save.textContent = "✓ Saved";
+    save.disabled = true;
+  });
+}
+
+document.addEventListener("click", (e) => {
+  const w = e.target.closest(".w");
+  if (w) { showWordPop(w); return; }
+  if (!e.target.closest("#wordPop")) el("wordPop").classList.add("hidden");
+});
+
+// 💡 contextual "you could say…" box shown beneath the conversation (text only).
+function showSuggestion(it, en) {
+  const old = chatEl.querySelector(".suggestion");
+  if (old) old.remove();
+  if (!suggestOn || !it) return;
+  const d = document.createElement("div");
+  d.className = "suggestion";
+  const label = document.createElement("div");
+  label.className = "s-label";
+  label.textContent = "💡 You could say…";
+  const itDiv = document.createElement("div");
+  itDiv.className = "s-it";
+  itDiv.textContent = it;
+  itDiv.appendChild(makeReplay(it));
+  d.appendChild(label);
+  d.appendChild(itDiv);
+  if (en) {
+    const enDiv = document.createElement("div");
+    enDiv.className = "s-en";
+    enDiv.textContent = en;
+    d.appendChild(enDiv);
+  }
+  chatEl.appendChild(d);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+/* ---------- the tutor (Claude) ---------- */
+function systemPrompt() {
+  const level = el("level").value;
+  const scene = (TOPICS[topic] || TOPICS.free).scene;
+  return `You are Giulia, a warm, encouraging Italian tutor having a spoken conversation with a student whose level is: ${level}.
+${scene ? `
+Scenario: ${scene} Stay in this setting, keep the language at the student's level, and remain an encouraging tutor. If this is grammar coaching, keep the conversation natural — one question at a time, never a grammar lecture — and use the FIX line diligently whenever the target structure is wrong or avoided.
+
+Pacing — the student is now on turn ${turnsThisTopic + 1} of this scene:
+- Actively DRIVE the scene forward through its stages; don't linger on one stage or repeat questions.
+- Around the student's 3rd–5th turn, spring the scene's twist naturally, so they must improvise.
+- Around the student's 8th–10th turn, bring the scene to a warm, natural close in character. On that final turn only: the IT line needn't end with a question, and the EN line should add 1–2 encouraging sentences of English feedback (what they did well + one thing to practise) and suggest picking a new topic from the menu.
+` : "\nFree chat: no fixed scene. Keep it varied and personal; if the student seems unsure what to say, offer a couple of concrete subjects to choose from. No wrap-up needed.\n"}
+- The student speaks to you; their words arrive via speech-to-text and may be slightly garbled. Respond directly and sensibly to what they most likely meant.
+- If the student uses ENGLISH for all or part of their message, they need help saying it: reply naturally in Italian to what they meant, and ALWAYS put the full Italian sentence they were trying to say in FIX so they can practise it.
+- If a word or phrase is unintelligible or seems invented (a mis-transcription like "Arrisotto Confumbi"), do NOT guess or pretend to understand: in the IT line kindly ask them to repeat or clarify that part, and put a dash in FIX.
+- Keep your Italian short (1–2 sentences), correct, and matched to their level. Always end the IT line with a simple question. Be patient and positive; never lecture.
+
+${(() => { const due = vocabDue().slice(0, 4).map(v => v.it); return due.length ? "\nVocabulary reinforcement: where it fits naturally (never forced), weave these words the student is learning into your replies or questions: " + due.join("; ") + "\n" : ""; })()}
+Reply in EXACTLY this format on EVERY turn — four labelled lines, nothing before or after. No matter how long the conversation gets, ALWAYS include every line; never drop one:
+IT: <your spoken Italian, 1–2 sentences, ending in a question>
+EN: <an accurate, natural English translation of the IT line — NEVER leave this blank>
+FIX: <if the student made ANY grammar or word mistake, write the FULL corrected Italian sentence they should have said — Italian only, no English, no quotes (it will be read aloud to them). If they were correct, just a dash ->
+SUG: <a short natural sentence the student could SAY NEXT to move the scene forward, fitting what just happened (e.g. after they order a coffee, suggest asking whether there are pastries) — format: Italian sentence | English translation>`;
+}
+
+async function askTutor(userText) {
+  history.push({ role: "user", content: userText });
+  if (history.length > MAX_TURNS) history = history.slice(-MAX_TURNS);
+
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "authorization": "Bearer " + apiKey,
+      "HTTP-Referer": location.origin,   // optional: lets OpenRouter attribute the app
+      "X-Title": "Parla Italian Tutor",
+    },
+    body: JSON.stringify({
+      model: model,
+      max_tokens: 400,
+      messages: [{ role: "system", content: systemPrompt() }, ...history],
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`API ${res.status}: ${body.slice(0, 300)}`);
+  }
+  const data = await res.json();
+  const raw = (data.choices?.[0]?.message?.content || "").trim();
+  const parsed = parseTutor(raw);
+  // Store the assistant turn in the SAME labelled format we want back, so the model
+  // keeps producing the EN/FIX lines deep into the conversation. (If we store plain
+  // Italian, after a few turns it mimics that and drops the English translation.)
+  history.push({ role: "assistant", content: `IT: ${parsed.reply_it}\nEN: ${parsed.hint || ""}\nFIX: ${parsed.correction || "-"}\nSUG: ${parsed.sugRaw || "-"}` });
+  return parsed;
+}
+
+// Parse the tutor's "IT:/EN:/FIX:" reply. Robust: tolerates extra whitespace,
+// and falls back to JSON or raw text if the model ignored the format.
+function parseTutor(raw) {
+  const g = (re) => { const m = raw.match(re); return m ? m[1].trim() : ""; };
+  let reply_it = g(/IT:\s*([\s\S]*?)(?=\n*\s*EN:|$)/i);
+  let hint     = g(/EN:\s*([\s\S]*?)(?=\n*\s*FIX:|$)/i);
+  let correction = g(/FIX:\s*([\s\S]*?)(?=\n*\s*SUG:|$)/i);
+  let sugRaw   = g(/SUG:\s*([\s\S]*?)$/i);
+  if (!reply_it && raw.indexOf("{") !== -1) {            // fallback: model replied in JSON
+    try {
+      const j = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+      reply_it = j.reply_it || ""; hint = j.hint || ""; correction = j.correction || "";
+    } catch {}
+  }
+  if (/^[-–—\s]*$/.test(correction) || /^(none|n\/a|nessun)/i.test(correction)) correction = "";
+  let sug_it = "", sug_en = "";
+  if (sugRaw && !/^[-–—\s]*$/.test(sugRaw)) {
+    const sp = sugRaw.split("|");
+    sug_it = (sp[0] || "").trim();
+    sug_en = (sp[1] || "").trim();
+  }
+  if (!reply_it) reply_it = (raw.split(/\s*(?:EN|FIX|SUG)\s*:/i)[0].replace(/^\s*IT:\s*/i, "").trim()) || raw.trim();
+  return { reply_it, hint, correction, sug_it, sug_en, sugRaw };
+}
+
+// "How do you say…?" — translate an English phrase to Italian. Stateless (not part
+// of the conversation history), so it doesn't disturb the current role-play.
+async function translateToItalian(englishPhrase) {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json", "authorization": "Bearer " + apiKey, "HTTP-Referer": location.origin, "X-Title": "Parla Italian Tutor" },
+    body: JSON.stringify({
+      model: model,
+      max_tokens: 200,
+      messages: [
+        { role: "system", content: "You translate for an English speaker learning Italian. Given an English phrase, reply with ONLY the natural, conversational Italian translation — no quotes, no explanation, no English." },
+        { role: "user", content: englishPhrase },
+      ],
+    }),
+  });
+  if (!res.ok) { const b = await res.text(); throw new Error(`${res.status}: ${b.slice(0, 150)}`); }
+  const data = await res.json();
+  return (data.choices?.[0]?.message?.content || "").trim();
+}
+
+// 📖 Review the conversation so far and explain its key basic grammar points.
+async function explainGrammar() {
+  if (history.length < 2) { setStatus("Have a little conversation first — then I can explain the grammar in it."); return; }
+  const btn = el("grammarBtn");
+  btn.disabled = true;
+  btn.textContent = "📖 Reviewing…";
+  setStatus("Reviewing the conversation for grammar points…");
+  Avatar.setState("thinking");
+  try {
+    const level = el("level").value;
+    const convo = history.map(m => (m.role === "user" ? "Student: " : "Tutor: ") + m.content).join("\n");
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json", "authorization": "Bearer " + apiKey, "HTTP-Referer": location.origin, "X-Title": "Parla Italian Tutor" },
+      body: JSON.stringify({
+        model: model,
+        max_tokens: 700,
+        messages: [
+          { role: "system", content: `You are an Italian teacher. Review this conversation and pick the 3–4 most useful BASIC grammar points that actually occur in it, appropriate for a ${level} student. For each point:
+- name it simply and quote the word or phrase from the conversation it comes from (in quotes)
+- explain it briefly in plain English
+- show the basic pattern, e.g. for "abbiamo": avere = to have → ho (I have), hai (you have), ha (he/she has), abbiamo (we have), avete (you all have), hanno (they have); or for endings: -o usually masculine, -a usually feminine.
+Keep the whole answer under 250 words. Plain text only: short lines, bullets starting with "•", no markdown symbols like ** or #.` },
+          { role: "user", content: convo },
+        ],
+      }),
+    });
+    if (!res.ok) { const b = await res.text(); throw new Error(`${res.status}: ${b.slice(0, 150)}`); }
+    const data = await res.json();
+    const text = (data.choices?.[0]?.message?.content || "").trim();
+    if (!text) throw new Error("empty reply");
+    showGrammarCard(text);
+    setStatus("Grammar notes added below — carry on when you're ready.");
+  } catch (e) {
+    addMessage("assistant", { it: "", hint: "⚠️ Couldn't review the grammar: " + e.message });
+    setStatus("Grammar review failed (see message above).");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "📖 Grammar";
+    Avatar.setState("idle");
+  }
+}
+
+function showCard(labelText, text) {
+  const d = document.createElement("div");
+  d.className = "grammar-card";
+  const label = document.createElement("div");
+  label.className = "g-label";
+  label.textContent = labelText;
+  const body = document.createElement("div");
+  body.className = "g-body";
+  body.textContent = text;
+  d.appendChild(label);
+  d.appendChild(body);
+  chatEl.appendChild(d);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+function showGrammarCard(text) { showCard("📖 Grammar notes from this conversation", text); }
+
+// 📋 what happened this sitting: fixes, new words, time — no API call needed.
+function showReport() {
+  const lines = [];
+  lines.push(`⏱ ${minutesToday()} min today · 🔥 ${streakDays()}-day streak · ${session.turns} turns this session`);
+  if (session.corrections.length) {
+    lines.push("");
+    lines.push("Fixes from this session:");
+    session.corrections.slice(-8).forEach(c => lines.push(`• You said: ${c.said}\n  ✏️ ${c.fix}`));
+  } else {
+    lines.push("");
+    lines.push("No corrections this session — bravissimo!");
+  }
+  if (session.words.length) {
+    lines.push("");
+    lines.push("New words saved: " + session.words.join(" · "));
+  }
+  const dueTomorrow = vocab.filter(v => v.due <= Date.now() + 86400000).length;
+  lines.push("");
+  lines.push(`📇 ${dueTomorrow} item(s) due for review by tomorrow — tap the Review button then.`);
+  showCard("📋 Session report", lines.join("\n"));
+}
+
+// 📇 the notebook itself, when nothing is due.
+function showNotebook() {
+  if (!vocab.length) { setStatus("No saved words yet — corrections and lookups are saved automatically."); return; }
+  const soonest = vocab.reduce((a, b) => (a.due < b.due ? a : b));
+  const hours = Math.max(1, Math.round((soonest.due - Date.now()) / 3600000));
+  const list = vocab.slice().sort((a, b) => a.due - b.due).slice(0, 20)
+    .map(v => `• ${v.it}${v.en ? " — " + v.en : ""}`).join("\n");
+  showCard("📇 Your words (" + vocab.length + ")", list + `\n\nNothing due right now — next review in about ${hours}h.`);
+}
+
+async function handleAsk() {
+  const q = el("askInput").value.trim();
+  if (!q) return;
+  el("askInput").value = "";
+  addMessage("user", { it: "How do you say: " + q });
+  setStatus("Finding the Italian…");
+  Avatar.setState("thinking");
+  try {
+    const italian = await translateToItalian(q);
+    const bubble = addMessage("assistant", { it: italian, hint: q });   // Italian (with 🔊) + the English underneath
+    bubble.appendChild(makePracticeBtn(italian));                        // manual retry any time
+    saveVocabItem(italian, q);                                           // looked-up = worth remembering
+    bumpActivity();
+    practiceAttempts = 0;
+    // Speak it, then automatically wait for the student to repeat it back.
+    speakParts([{ text: italian }], { autoListen: false, onDone: () => beginPractice(italian) });
+    setStatus("Listen… then repeat it — I'll be listening.");
+  } catch (e) {
+    addMessage("assistant", { it: "", hint: "⚠️ " + e.message });
+    setStatus("Couldn't translate (see message above).");
+    Avatar.setState("idle");
+  }
+}
+
+async function handleUserSpeech(text, sttSecs) {
+  if (!text || !text.trim()) { setStatus("Didn't catch that — tap and try again."); return; }
+  showSuggestion(null);              // you've taken your turn — clear the old tip
+  addMessage("user", { it: text });
+  setStatus("Giulia is thinking…");
+  Avatar.setState("thinking");
+  micEl.disabled = true;
+  try {
+    const t0 = performance.now();
+    const r = await askTutor(text);
+    const replySecs = ((performance.now() - t0) / 1000).toFixed(1);
+    addMessage("assistant", { it: r.reply_it, hint: r.hint, correction: r.correction });
+    showSuggestion(r.sug_it, r.sug_en);
+    session.turns++;
+    bumpActivity();
+    if (r.correction) {
+      session.corrections.push({ said: text, fix: r.correction });
+      saveVocabItem(r.correction, "");             // every fix becomes a flashcard
+    }
+    // grammar tracking: 3 real exchanges in a grammar topic = practised ✓
+    turnsThisTopic++;
+    if (topic.startsWith("g_") && turnsThisTopic >= 3 && !practiced.has(topic)) {
+      practiced.add(topic);
+      localStorage.setItem("parla_practiced", JSON.stringify([...practiced]));
+      paintPracticed();
+    }
+    if (correctMe && r.correction) {
+      // Speak her reply, then the fix — and then WAIT for the student to repeat the
+      // corrected sentence (checked, up to 3 goes) before the conversation moves on.
+      practiceAttempts = 0;
+      resumeAfterPractice = true;
+      setStatus("👂 Listen — then repeat the correction when Giulia finishes.");
+      speakParts(
+        [{ text: r.reply_it }, { text: "Si dice: " + r.correction, rate: 0.85 }],
+        { autoListen: false, onDone: () => beginPractice(r.correction) }
+      );
+    } else {
+      speakParts([{ text: r.reply_it }]);
+      setStatus(`Your turn${handsFree ? " — just speak" : " — tap the mic"}.   ⏱ heard ${sttSecs ?? "?"}s · replied ${replySecs}s`);
+    }
+  } catch (e) {
+    addMessage("assistant", { it: "", hint: "⚠️ " + e.message });
+    setStatus("Something went wrong (see message above).");
+  } finally {
+    micEl.disabled = false;
+  }
+}
+
+/* ---------- listening: record audio, transcribe via OpenRouter (Whisper) ---------- */
+const STT_MODEL = "openai/whisper-large-v3";   // served by Groq/Together; works under a no-training data policy
+let mediaRecorder = null, audioChunks = [], mediaStream = null, recordingCancelled = false;
+let handsFree = localStorage.getItem("parla_handsfree") === "1";
+
+// Pick an audio format this browser can actually record. Edge/Chrome do webm;
+// iPad/Safari does mp4 (→ m4a). Whichever we use, we tell Whisper the matching format.
+let recMime = "", recFormat = "webm";
+function pickRecMime() {
+  if (recMime) return;
+  const cands = [["audio/webm", "webm"], ["audio/mp4", "m4a"], ["audio/ogg", "ogg"], ["audio/mpeg", "mp3"]];
+  for (const [m, f] of cands) {
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) { recMime = m; recFormat = f; return; }
+  }
+  recMime = ""; recFormat = "webm";   // fall back to the browser default
+}
+
+/* voice-activity detection: auto-stop a moment after the speaker goes quiet */
+let audioCtx = null, vadRAF = null;
+const SPEAK_THRESHOLD = 0.02;   // mic loudness that counts as "talking"
+const SILENCE_CHAT = 2800;      // building a sentence: allow long thinking pauses
+const SILENCE_DRILL = 2000;     // repeating a known short phrase: a bit snappier
+const NO_SPEECH_MS = 12000;     // give up if nothing is said at all
+const MAX_RECORD_MS = 30000;    // hard cap on one turn
+
+function startVAD(stream) {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = audioCtx.createMediaStreamSource(stream);
+  const analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  src.connect(analyser);
+  const buf = new Uint8Array(analyser.fftSize);
+  const silenceMs = recordMode === "chat" ? SILENCE_CHAT : SILENCE_DRILL;
+  let spoke = false, lastSound = performance.now(), started = performance.now();
+  const tick = () => {
+    analyser.getByteTimeDomainData(buf);
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+    const rms = Math.sqrt(sum / buf.length), now = performance.now();
+    if (rms > SPEAK_THRESHOLD) { spoke = true; lastSound = now; }
+    if (spoke && now - lastSound > silenceMs) return stopRecording();      // finished after a real pause
+    if (!spoke && now - started > NO_SPEECH_MS) return cancelRecording();  // silent the whole time
+    if (now - started > MAX_RECORD_MS) return stopRecording();             // safety cap
+    vadRAF = requestAnimationFrame(tick);
+  };
+  vadRAF = requestAnimationFrame(tick);
+}
+function stopVAD() {
+  if (vadRAF) cancelAnimationFrame(vadRAF);
+  vadRAF = null;
+  if (audioCtx) { audioCtx.close(); audioCtx = null; }
+}
+
+async function ensureStream() {
+  if (mediaStream && mediaStream.active) return mediaStream;
+  mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  return mediaStream;
+}
+function releaseStream() {
+  if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+}
+
+async function startRecording() {
+  let stream;
+  try { stream = await ensureStream(); }
+  catch (e) { setStatus("Couldn't access the microphone — allow mic access and try again."); return; }
+  audioChunks = [];
+  recordingCancelled = false;
+  pickRecMime();
+  mediaRecorder = recMime ? new MediaRecorder(stream, { mimeType: recMime }) : new MediaRecorder(stream);
+  mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) audioChunks.push(e.data); };
+  mediaRecorder.onstop = onRecordingStop;
+  mediaRecorder.start();
+  recognizing = true;
+  micEl.classList.add("listening");
+  Avatar.setState("listening");
+  const useVAD = handsFree || recordMode !== "chat";   // practice & spoken-English always auto-stop on silence
+  if (recordMode === "practice") setStatus("🎙 Your turn — say: “" + practiceTarget + "”");
+  else if (recordMode === "recall") setStatus("🎙 In italiano: “" + (recallCurrent ? recallCurrent.en : "") + "”");
+  else if (recordMode === "askEN") setStatus("🎙 Say the English word or phrase…");
+  else if (handsFree) setStatus("🎙 Listening… just speak — I'll send automatically when you pause.");
+  else setStatus("🔴 Recording… tap the mic again when you've finished speaking.");
+  if (useVAD) startVAD(stream);
+}
+
+function stopRecording() {           // finish & send
+  stopVAD();
+  if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+  if (!handsFree) releaseStream();   // in hands-free we keep the mic warm for the next turn
+  recognizing = false;
+  micEl.classList.remove("listening");
+}
+
+function cancelRecording() {         // stop WITHOUT sending (e.g. nothing was said)
+  recordingCancelled = true;
+  stopVAD();
+  if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+  recognizing = false;
+  micEl.classList.remove("listening");
+}
+
+async function onRecordingStop() {
+  const mode = recordMode;
+  recordMode = "chat";                                   // always reset; practiceTarget handled below
+  if (recordingCancelled) {
+    recordingCancelled = false;
+    practiceTarget = null;
+    resumeAfterPractice = false;
+    abortRecall("Review paused — tap 📇 to pick it up again.");
+    Avatar.setState("idle");
+    setStatus(handsFree ? "Didn't hear anything — tap 🎤 or Hands-free to resume." : "I didn't hear anything — tap the mic when you're ready.");
+    return;
+  }
+  const blob = new Blob(audioChunks, { type: recMime || "audio/webm" });
+  if (!blob.size) { practiceTarget = null; abortRecall(); setStatus("Didn't catch anything — tap and speak."); Avatar.setState("idle"); return; }
+  setStatus("Transcribing…");
+  Avatar.setState("thinking");
+  micEl.disabled = true;
+  try {
+    const t0 = performance.now();
+    const text = await transcribe(blob, mode === "askEN" ? "en" : "it");
+    const sttSecs = ((performance.now() - t0) / 1000).toFixed(1);
+    micEl.disabled = false;
+    if (!text || !text.trim()) { practiceTarget = null; setStatus("Didn't catch that — tap and try again."); Avatar.setState("idle"); return; }
+    if (mode === "practice") finishPractice(text);
+    else if (mode === "recall") finishRecall(text);
+    else if (mode === "askEN") { el("askInput").value = text; handleAsk(); }
+    else handleUserSpeech(text, sttSecs);
+  } catch (e) {
+    micEl.disabled = false;
+    practiceTarget = null;
+    abortRecall();
+    addMessage("assistant", { it: "", hint: "⚠️ Transcription failed: " + e.message });
+    setStatus("Couldn't transcribe (see message above).");
+    Avatar.setState("idle");
+  }
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onloadend = () => resolve(String(r.result).split(",")[1]);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
+async function transcribe(blob, lang = "it") {
+  const b64 = await blobToBase64(blob);
+  const res = await fetch("https://openrouter.ai/api/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { "content-type": "application/json", "authorization": "Bearer " + apiKey },
+    body: JSON.stringify({
+      model: STT_MODEL,
+      input_audio: { data: b64, format: recFormat },
+      language: lang,
+      provider: { data_collection: "deny" },   // only route to providers that don't store/train on your audio
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`${res.status}: ${body.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  return data.text || "";
+}
+
+micEl.addEventListener("click", () => {
+  if (!navigator.mediaDevices || !window.MediaRecorder) {
+    setStatus("This browser can't record audio. Please use Chrome or Edge.");
+    return;
+  }
+  speechSynthesis.cancel();
+  if (recognizing) stopRecording();   // tap while recording = finish & send now
+  else startRecording();              // tap to start
+});
+
+// In hands-free mode, start the next turn automatically once Giulia finishes speaking.
+function maybeAutoListen() {
+  if (handsFree && !recognizing && !micEl.disabled) startRecording();
+}
+
+// Hands-free toggle
+const handsFreeBtn = el("handsFreeBtn");
+function paintHandsFree() {
+  handsFreeBtn.textContent = handsFree ? "🤝 Hands-free: On" : "🤝 Hands-free: Off";
+  handsFreeBtn.classList.toggle("toggle-on", handsFree);
+}
+paintHandsFree();
+handsFreeBtn.addEventListener("click", () => {
+  handsFree = !handsFree;
+  localStorage.setItem("parla_handsfree", handsFree ? "1" : "0");
+  paintHandsFree();
+  if (handsFree) {
+    if (!recognizing && !speechSynthesis.speaking && !micEl.disabled) startRecording();
+    else setStatus("Hands-free on — I'll start listening as soon as Giulia finishes.");
+  } else {
+    if (recognizing) cancelRecording();
+    releaseStream();
+    setStatus("Hands-free off — tap the mic to talk.");
+  }
+});
+
+/* ---------- setup / key handling ---------- */
+function showApp() {
+  el("setup").classList.add("hidden");
+  el("stage").classList.remove("hidden");
+  chatEl.classList.remove("hidden");
+  el("micbar").classList.remove("hidden");
+  Avatar.start();
+  paintStreak();
+  paintReviewBtn();
+  if (history.length === 0) newConversation();
+}
+
+// Start (or restart) a conversation using the currently selected topic.
+function newConversation() {
+  speechSynthesis.cancel();
+  history = [];
+  turnsThisTopic = 0;
+  chatEl.innerHTML = "";
+  const opener = (TOPICS[topic] || TOPICS.free).opener;
+  addMessage("assistant", { it: opener.reply_it, hint: opener.hint });
+  history.push({ role: "assistant", content: `IT: ${opener.reply_it}\nEN: ${opener.hint}\nFIX: -\nSUG: -` });
+  speakParts([{ text: opener.reply_it }]);
+}
+
+el("saveKey").addEventListener("click", () => {
+  // strip whitespace and any surrounding quotes that sneak in when pasting
+  let v = el("keyInput").value.trim().replace(/^["']|["']$/g, "").trim();
+  if (v.length < 8) { el("keyErr").textContent = "Please paste your full OpenRouter key (starts with sk-or-…)."; return; }
+  if (!v.startsWith("sk-or-")) { el("keyErr").textContent = "Heads up: that doesn't start with sk-or- — starting anyway, but the key may be wrong."; }
+  else { el("keyErr").textContent = ""; }
+  apiKey = v;
+  localStorage.setItem("parla_or_key", v);
+  localStorage.setItem("parla_model", model);
+  showApp();
+});
+
+// model toggle: smarter (accurate) vs faster (quick). Drives every tutor call.
+const modelSel = el("modelSel");
+if ([...modelSel.options].some(o => o.value === model)) modelSel.value = model;
+else { model = modelSel.value; localStorage.setItem("parla_model", model); }
+modelSel.addEventListener("change", () => {
+  model = modelSel.value;
+  localStorage.setItem("parla_model", model);
+});
+
+el("keyBtn").addEventListener("click", () => {
+  el("keyInput").value = apiKey;
+  el("setup").classList.remove("hidden");
+  el("stage").classList.add("hidden");
+  chatEl.classList.add("hidden");
+  el("micbar").classList.add("hidden");
+});
+
+el("resetBtn").addEventListener("click", () => { newConversation(); });
+
+// Topic / scenario picker — switching starts that scene fresh, in character.
+const topicSel = el("topicSel");
+// ✓-mark grammar topics you've practised (3+ exchanges), and show progress in the group label
+function paintPracticed() {
+  [...topicSel.options].forEach(o => {
+    const base = o.dataset.label || (o.dataset.label = o.textContent);
+    o.textContent = practiced.has(o.value) ? "✓ " + base : base;
+  });
+  [...topicSel.querySelectorAll("optgroup")].forEach(g => {
+    const base = g.dataset.label || (g.dataset.label = g.label);
+    if (!/^Grammar/.test(base)) return;
+    const opts = [...g.children];
+    const done = opts.filter(o => practiced.has(o.value)).length;
+    g.label = `${base} — ${done}/${opts.length} ✓`;
+  });
+}
+paintPracticed();
+topicSel.value = topic;
+topicSel.addEventListener("change", () => {
+  topic = topicSel.value;
+  localStorage.setItem("parla_topic", topic);
+  newConversation();
+});
+
+// "Correct me" toggle — speak the corrected version of what you said.
+const correctBtn = el("correctBtn");
+function paintCorrect() {
+  correctBtn.textContent = correctMe ? "✏️ Correct me: On" : "✏️ Correct me: Off";
+  correctBtn.classList.toggle("toggle-on", correctMe);
+}
+paintCorrect();
+correctBtn.addEventListener("click", () => {
+  correctMe = !correctMe;
+  localStorage.setItem("parla_correct", correctMe ? "1" : "0");
+  paintCorrect();
+});
+
+// 💡 Suggestions toggle — contextual "you could say…" tips under the conversation.
+const suggestBtn = el("suggestBtn");
+function paintSuggest() {
+  suggestBtn.textContent = suggestOn ? "💡 Suggestions: On" : "💡 Suggestions: Off";
+  suggestBtn.classList.toggle("toggle-on", suggestOn);
+}
+paintSuggest();
+suggestBtn.addEventListener("click", () => {
+  suggestOn = !suggestOn;
+  localStorage.setItem("parla_suggest", suggestOn ? "1" : "0");
+  paintSuggest();
+  if (!suggestOn) showSuggestion(null);   // hide any tip currently on screen
+});
+
+// 📖 Grammar review of the current conversation
+el("grammarBtn").addEventListener("click", explainGrammar);
+
+// 📇 spaced-repetition review of saved words (or show the notebook if nothing's due)
+el("reviewBtn").addEventListener("click", () => {
+  if (recognizing) return;
+  const due = vocabDue();
+  if (!due.length) { showNotebook(); return; }
+  startRecall(
+    due.slice(0, 10).map(v => ({ en: v.en || "Ripeti: " + v.it, it: v.it, ref: v })),
+    "review"
+  );
+});
+
+// 📋 session report
+el("reportBtn").addEventListener("click", showReport);
+
+// "How do you say…?" lookup — typed, or spoken in English via 🎙 EN
+el("askBtn").addEventListener("click", handleAsk);
+el("askInput").addEventListener("keydown", (e) => { if (e.key === "Enter") handleAsk(); });
+el("askMicBtn").addEventListener("click", () => {
+  if (recognizing) return;
+  speechSynthesis.cancel();
+  recordMode = "askEN";
+  startRecording();
+});
+
+/* ---------- boot ---------- */
+if (apiKey) showApp();
+</script>
+</body>
+</html>
