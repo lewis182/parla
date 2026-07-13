@@ -452,6 +452,22 @@ function pickItalianVoice() {
 speechSynthesis.onvoiceschanged = pickItalianVoice;
 pickItalianVoice();
 
+// iOS/iPad: Safari mutes the voice until speech is first triggered during a real
+// tap. Unlock it on the first touch anywhere so Giulia can be heard afterwards.
+let _speechUnlocked = false;
+function unlockSpeech() {
+  if (_speechUnlocked) return;
+  _speechUnlocked = true;
+  try {
+    const u = new SpeechSynthesisUtterance(" ");
+    u.volume = 0;
+    speechSynthesis.speak(u);
+  } catch (e) {}
+  pickItalianVoice();
+}
+["touchend", "pointerup", "mousedown"].forEach(ev =>
+  document.addEventListener(ev, unlockSpeech, { once: true, passive: true }));
+
 function cleanItalian(text) {
   // Voice ONLY the Italian: strip any leaked label / English / correction / suggestion text.
   return String(text || "").replace(/^\s*IT:\s*/i, "").split(/\s*(?:EN|FIX|SUG)\s*:/i)[0].trim();
