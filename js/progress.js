@@ -57,6 +57,7 @@ function countMistakeArea(id) {
     if (window.exActive && window.ParlaExercises) ParlaExercises.close();
     speechSynthesis.cancel();
     try { if (recognizing) cancelRecording(); } catch {}
+    if (window.cardsActive && window.ParlaCards) ParlaCards.close();
     ["stage", "micbar", "voicePanel", "setup"].forEach(id => el(id).classList.add("hidden"));
     chatEl.classList.add("hidden");
     archiveConvo();

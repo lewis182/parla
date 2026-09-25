@@ -104,9 +104,15 @@ function cancelRecording() {         // stop WITHOUT sending (e.g. nothing was s
 async function onRecordingStop() {
   const mode = recordMode;
   recordMode = "chat";                                   // always reset; practiceTarget handled below
-  const toExercise = (text, err) => { Avatar.setState("idle"); if (window.ParlaExercises) ParlaExercises.heard(text, err); };
+  // 🎤 answers in Exercises and 🎙 questions in Cards go back to their own panel
+  const panelMode = mode === "exercise" || mode === "cardAsk";
+  const toExercise = (text, err) => {
+    Avatar.setState("idle");
+    const target = mode === "cardAsk" ? window.ParlaCards : window.ParlaExercises;
+    if (target) target.heard(text, err);
+  };
   if (recordingCancelled) {
-    if (mode === "exercise") { recordingCancelled = false; toExercise(null); return; }
+    if (panelMode) { recordingCancelled = false; toExercise(null); return; }
     recordingCancelled = false;
     practiceTarget = null;
     resumeAfterPractice = false;
@@ -116,17 +122,17 @@ async function onRecordingStop() {
     return;
   }
   const blob = new Blob(audioChunks, { type: recMime || "audio/webm" });
-  if (!blob.size && mode === "exercise") { toExercise(null); return; }
+  if (!blob.size && panelMode) { toExercise(null); return; }
   if (!blob.size) { practiceTarget = null; abortRecall(); setStatus("Didn't catch anything — tap and speak."); Avatar.setState("idle"); return; }
   setStatus("Transcribing…");
   Avatar.setState("thinking");
   micEl.disabled = true;
   try {
     const t0 = performance.now();
-    const text = await transcribe(blob, mode === "askEN" ? "en" : "it");
+    const text = await transcribe(blob, mode === "askEN" || mode === "cardAsk" ? "en" : "it");
     const sttSecs = ((performance.now() - t0) / 1000).toFixed(1);
     micEl.disabled = false;
-    if (mode === "exercise") { toExercise(text && text.trim() ? text : null); return; }
+    if (panelMode) { toExercise(text && text.trim() ? text : null); return; }
     if (!text || !text.trim()) { practiceTarget = null; setStatus("Didn't catch that — tap and try again."); Avatar.setState("idle"); return; }
     if (mode === "practice") finishPractice(text);
     else if (mode === "recall") finishRecall(text);
@@ -134,7 +140,7 @@ async function onRecordingStop() {
     else handleUserSpeech(text, sttSecs);
   } catch (e) {
     micEl.disabled = false;
-    if (mode === "exercise") { toExercise(null, e.message); return; }
+    if (panelMode) { toExercise(null, e.message); return; }
     practiceTarget = null;
     abortRecall();
     addMessage("assistant", { it: "", hint: "⚠️ Transcription failed: " + e.message });
@@ -178,7 +184,7 @@ micEl.addEventListener("click", () => {
 
 // In hands-free mode, start the next turn automatically once Giulia finishes speaking.
 function maybeAutoListen() {
-  if (window.exActive) return;       // never start the mic while the Exercises panel is open
+  if (window.exActive || window.cardsActive) return;   // never open the mic behind the Exercises / Cards panels       // never start the mic while the Exercises panel is open
   if (handsFree && !recognizing && !micEl.disabled) startRecording();
 }
 

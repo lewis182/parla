@@ -51,6 +51,7 @@ el("keyBtn").addEventListener("click", () => {
   if (window.exActive && window.ParlaExercises) ParlaExercises.close();
   el("voicePanel").classList.add("hidden");
   el("progressPanel").classList.add("hidden");
+  if (window.cardsActive && window.ParlaCards) { ParlaCards.close(); el("stage").classList.add("hidden"); chatEl.classList.add("hidden"); el("micbar").classList.add("hidden"); }
   el("keyInput").value = apiKey;
   el("setup").classList.remove("hidden");
   el("stage").classList.add("hidden");
@@ -150,6 +151,7 @@ el("voiceBtn").addEventListener("click", () => {
   if (window.exActive && window.ParlaExercises) ParlaExercises.close();
   speechSynthesis.cancel();
   el("setup").classList.add("hidden");
+  if (window.cardsActive && window.ParlaCards) ParlaCards.close();
   ["stage", "micbar", "progressPanel"].forEach(id => el(id).classList.add("hidden"));
   chatEl.classList.add("hidden");
   paintVoicePanel();
