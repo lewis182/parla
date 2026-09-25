@@ -1,10 +1,10 @@
 /* Parla — offline support. Network first (so you always get the latest version when
    online), falling back to the cached copy when there's no signal. API calls are never cached. */
-const CACHE = "parla-v1";
+const CACHE = "parla-v2";
 const SHELL = [
   "./", "index.html", "parla.css", "manifest.webmanifest", "icon-180.png", "icon-192.png", "icon-512.png",
   "exercises.js", "js/topics.js", "js/api.js", "js/core.js", "js/tutor.js", "js/recorder.js",
-  "js/ui.js", "js/progress.js", "js/conjugate.js", "js/boot.js",
+  "js/ui.js", "js/progress.js", "js/conjugate.js", "js/cards-data.js", "js/cards.js", "js/boot.js",
 ];
 
 self.addEventListener("install", (e) => {
