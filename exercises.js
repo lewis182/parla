@@ -707,6 +707,10 @@ const EX_SETS = [
   .ex-verb button { border-top-right-radius:0; border-bottom-right-radius:0; }
   .ex-verb select { border-top-left-radius:0; border-bottom-left-radius:0; border-left:none; }
   .ex-inrow button.rec { border-color: var(--danger); color: var(--danger); animation: pulse 1.2s infinite; }
+  .ex-tbl { border-collapse: collapse; font-size: 14.5px; align-self: flex-start; min-width: 220px; }
+  .ex-tbl td { padding: 4px 12px; border-bottom: 1px solid var(--border); font-family: var(--serif); }
+  .ex-tbl td.p { color: var(--muted); font-family: inherit; font-size: 13px; padding-left: 0; }
+  .ex-tbl td.gap { color: var(--accent-deep); font-weight: 700; }
   .ex-sum ul { margin:6px 0 0; padding-left:18px; font-size:14px; line-height:1.6; }
   .ex-sum .big { font-family:var(--serif); font-size:26px; }
   @media (max-width:520px) { .ex-prompt { font-size:19px; } .ex-grid { grid-template-columns:1fr; } }`;
@@ -734,7 +738,7 @@ const EX_SETS = [
     return pairs.map(([it, en], i) => {
       const others = shuffle(pairs.filter((_, j) => j !== i)).slice(0, 3);
       const r = (i * 7 + 3) % 4;              // stable mix: 2× EN→IT choice, 1× IT→EN choice, 1× typed
-      if (r === 3) return { t: "tr", q: en, a: [it], voc: true, s: it, en: null, key: String(i), set, pair: [it, en] };
+      if (r === 3) return { t: "tr", q: en, a: it.split(" / ").concat(it.includes(" / ") ? [it] : []), voc: true, s: it.replace(/ \/ /g, " o "), en: null, key: String(i), set, pair: [it, en] };
       if (r === 2) return { t: "mc", q: it, o: [en, ...others.map(p => p[1])], s: it, key: String(i), set, pair: [it, en], ask: "What does this mean?" };
       return { t: "mc", q: en, o: [it, ...others.map(p => p[0])], s: it, key: String(i), set, pair: [it, en], ask: "How do you say…", itOpts: true };
     });
@@ -807,8 +811,8 @@ const EX_SETS = [
     try { if (typeof recognizing !== "undefined" && recognizing) cancelRecording(); } catch {}
     speechSynthesis.cancel();
     hideMain(true);
-    ["progressPanel", "voicePanel", "setup", "cardsPanel"].forEach(id => el(id) && el(id).classList.add("hidden"));
-    window.cardsActive = false;
+    ["progressPanel", "voicePanel", "setup", "cardsPanel", "gramPanel"].forEach(id => el(id) && el(id).classList.add("hidden"));
+    window.cardsActive = false; window.gramActive = false;
     backToCard = null;
     panel().classList.remove("hidden");
     showMenu();
@@ -894,9 +898,9 @@ const EX_SETS = [
   }
 
   /* ---------- a round ---------- */
-  function startRound(title, qs, set, regen) {
+  function startRound(title, qs, set, regen, extra) {
     if (!qs.length) return;
-    round = { title, set, regen, qs, i: 0, right: 0, wrong: [], answered: false };
+    round = { title, set, regen, qs, i: 0, right: 0, wrong: [], answered: false, extra: extra || {} };
     showQuestion();
   }
   function showQuestion() {
@@ -904,7 +908,7 @@ const EX_SETS = [
     r.answered = false;
     stopMic();
     const p = panel(); p.innerHTML = "";
-    p.appendChild(header(r.title, "✕ Stop", showMenu));
+    p.appendChild(header(r.title, "✕ Stop", r.extra.back ? () => { close(); r.extra.back(); } : showMenu));
     const card = h("div", "ex-q");
     const meta = h("div", "ex-meta");
     meta.appendChild(h("span", null, `Question ${r.i + 1} of ${r.qs.length}`));
@@ -925,6 +929,11 @@ const EX_SETS = [
     else if (q.ask) card.appendChild(h("div", "ex-hint", q.ask));
     else if (q.t === "conj") card.appendChild(h("div", "ex-hint", "Conjugate:"));
     else if (q.t === "tr") card.appendChild(h("div", "ex-hint", q.voc ? "Type it in Italian:" : "Say it in Italian (type your answer):"));
+    if (q.tbl) {                                   // show the verb's table with the gap, for context
+      const tb = h("table", "ex-tbl");
+      q.tbl.forEach(([who, form]) => { const tr = h("tr"); tr.appendChild(h("td", "p", who)); tr.appendChild(h("td", form == null ? "gap" : null, form == null ? "?" : form)); tb.appendChild(tr); });
+      card.appendChild(tb);
+    }
     const pr = h("div", "ex-prompt" + (q.t === "dict" ? " hidden" : ""));
     const parts = q.q.split("___");
     parts.forEach((t, i) => { pr.appendChild(document.createTextNode(t)); if (i < parts.length - 1) pr.appendChild(h("span", "gap", "?")); });
@@ -1059,13 +1068,15 @@ const EX_SETS = [
   function showSummary() {
     const r = round;
     const pct = Math.round(r.right / r.qs.length * 100);
+    if (r.extra.onDone) { try { r.extra.onDone(pct, r); } catch (e) { console.error(e); } }
     if (r.set) {
       const prev = scores[r.set.id];
       scores[r.set.id] = { best: Math.max(pct, prev ? prev.best : 0), last: pct, when: Date.now() };
       save(LS_SCORES, scores);
     }
     const p = panel(); p.innerHTML = "";
-    p.appendChild(header(r.title, "← All exercises", showMenu));
+    p.appendChild(header(r.title, r.extra.back ? (r.extra.backLabel || "← Back") : "← All exercises", r.extra.back ? () => { close(); r.extra.back(); } : showMenu));
+    if (r.extra.summaryNote) { const n = r.extra.summaryNote(pct); if (n) p.appendChild(h("div", "ex-fb " + (pct >= 80 ? "ok" : "no"), n)); }
     const card = h("div", "ex-q ex-sum");
     card.appendChild(h("div", "big", `${r.right} / ${r.qs.length}  ·  ${pct}%`));
     card.appendChild(h("div", "ex-hint", pct === 100 ? "Perfetto! Tutto giusto." : pct >= 75 ? "Molto bene!" : pct >= 50 ? "Non male — have another go at the ones you missed." : "Keep at it — try the missed ones again, then re-read the sheet."));
@@ -1088,12 +1099,17 @@ const EX_SETS = [
     }
     if (r.wrong.length) {
       const again = h("button", "ghost", "🔁 Retry the " + r.wrong.length + " I missed");
-      again.onclick = () => startRound(r.title + " — retry", shuffle(r.wrong.map(w => w.q)), null);
+      again.onclick = () => startRound(r.title + " — retry", shuffle(r.wrong.map(w => w.q)), null, null, r.extra.back ? { back: r.extra.back, backLabel: r.extra.backLabel } : null);
       acts.appendChild(again);
+    }
+    if (r.extra.back) {
+      const bk = h("button", "ghost", r.extra.backLabel || "← Back");
+      bk.onclick = () => { close(); r.extra.back(); };
+      acts.appendChild(bk);
     }
     if (r.regen) {
       const more = h("button", "primary", "↻ Another round");
-      more.onclick = () => startRound(r.title, r.regen(), null, r.regen);
+      more.onclick = () => startRound(r.title, r.regen(), null, r.regen, r.extra);
       acts.appendChild(more);
     }
     if (r.set) {
@@ -1128,8 +1144,17 @@ const EX_SETS = [
     backToCard = onBackToCard || null;
     startRound(s.title, shuffle(questionsFor(s)).slice(0, ROUND), s);
   }
+  // Start a round of ready-made questions (used by the 🧭 Verb course and 📘 Vocab).
+  function startCustom(title, qs, extra, regen) {
+    const vset = { id: (extra && extra.id) || "custom", title, sheet: (extra && extra.sheet) || "Grammatica", virtual: true };
+    qs = qs.map((q, i) => ({ key: "k" + i, ...q, set: q.set || vset }));
+    open();
+    startRound(title, qs, null, regen ? () => regen().map((q, i) => ({ key: "k" + i, ...q, set: q.set || vset })) : null, extra);
+  }
   window.ParlaExercises = {
-    open, close, openSet, sets: EX_SETS, questionsFor, markTyped, markSpoken, fullSentence, dictationItems,
+    startCustom, open, close, openSet,
+    current: () => (round ? round.qs[round.i] : null),   // used by the automated tests
+    sets: EX_SETS, questionsFor, markTyped, markSpoken, fullSentence, dictationItems,
     heard: (text, err) => { const fn = heardHandler; heardHandler = null; if (fn) fn(text, err); },
   };
 })();
