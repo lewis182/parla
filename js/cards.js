@@ -35,10 +35,12 @@
   }
   let CARDS = null;
   const cards = () => CARDS || (CARDS = buildCards());
-  const cardById = (id) => cards().find(c => c.id === id);
+  const custom = {};                        // lesson / course cards registered by 📘 Grammatica (not in the list)
+  const cardById = (id) => custom[id] || cards().find(c => c.id === id);
 
   // Plain-text version of a card, given to Giulia so she answers about exactly this card.
   function cardText(c) {
+    if (c.text) return `CARD: ${c.title}\n${c.text}`;
     const out = [`CARD: ${c.title} (from the sheet(s): ${c.sheet}; level ${c.level})`, c.intro || ""];
     if (c.points && c.points.length) out.push("Key points:", ...c.points.map(p => "- " + p));
     (c.tables || []).forEach(([title, rows]) => { out.push((title || "Examples") + ":"); rows.slice(0, 40).forEach(([it, en]) => out.push(`- ${it} = ${en}`)); });
@@ -52,7 +54,8 @@
     if (window.exActive && window.ParlaExercises) ParlaExercises.close();
     speechSynthesis.cancel();
     try { if (recognizing) cancelRecording(); } catch {}
-    ["stage", "micbar", "voicePanel", "setup", "progressPanel", "exPanel"].forEach(x => el(x) && el(x).classList.add("hidden"));
+    ["stage", "micbar", "voicePanel", "setup", "progressPanel", "exPanel", "gramPanel"].forEach(x => el(x) && el(x).classList.add("hidden"));
+    window.gramActive = false;
     chatEl.classList.add("hidden");
     panel().classList.remove("hidden");
     window.cardsActive = true;
@@ -79,6 +82,7 @@
     current = null; stopMic();
     const p = panel(); p.innerHTML = "";
     p.appendChild(top("📚 Cards", "← Back to Giulia", close));
+    if (window.ParlaSheets) { const add = $("button", "ghost", "➕ Add a sheet"); add.title = "Turn a new reference sheet (photo or image) into a card with exercises"; add.onclick = () => ParlaSheets.openAdd(); p.appendChild(add); }
     const done = cards().filter(c => state[c.id] && state[c.id].studied).length;
     p.appendChild($("p", "ex-intro", `One card per topic from your reference sheets (corrected where the sheets were wrong). Open a card to learn it, have Giulia explain it, get quizzed, do its exercises, and ask questions. ${done}/${cards().length} studied.`));
     const next = cards().find(c => !(state[c.id] && state[c.id].studied));
@@ -109,18 +113,19 @@
     if (!c) return showList();
     current = c; stopMic();
     const p = panel(); p.innerHTML = "";
-    p.appendChild(top("📚 " + c.title, "← All cards", showList));
+    p.appendChild(top((c.icon || "📚") + " " + c.title, c.backLabel || "← All cards", c.onBack ? () => { close(); c.onBack(); } : showList));
 
-    const list = cards(), i = list.indexOf(c);
+    const list = c.custom ? [c] : cards(), i = list.indexOf(c);
     const nav = $("div", "cd-nav");
     const prev = $("button", "ghost", "‹ Previous"); prev.disabled = i === 0; prev.onclick = () => showCard(list[i - 1].id);
     const pos = $("span", "cd-pos", `${i + 1} / ${list.length} · 📄 ${c.sheet}`);
     const nxt = $("button", "ghost", "Next ›"); nxt.disabled = i === list.length - 1; nxt.onclick = () => showCard(list[i + 1].id);
     nav.appendChild(prev); nav.appendChild(pos); nav.appendChild(nxt);
-    p.appendChild(nav);
+    if (!c.custom) p.appendChild(nav);
 
     // the card itself
     const card = $("div", "cd-card");
+    if (c.html) { const g = $("div", "gram-prose"); g.innerHTML = c.html; card.appendChild(g); }
     if (c.intro) card.appendChild($("p", "cd-intro", c.intro));
     if (c.points && c.points.length) {
       card.appendChild($("h4", null, "Key points"));
@@ -152,8 +157,15 @@
     const mk = (label, title, fn, cls = "ghost") => { const b = $("button", cls, label); b.title = title; b.onclick = fn; acts.appendChild(b); return b; };
     mk("🧑‍🏫 Explain it", "Giulia teaches this card step by step, then checks you've understood", () => ask("Explain this card to me simply, step by step, with a few everyday examples. Then ask me ONE quick question to check I've understood.", "🧑‍🏫 Explain this card to me"), "primary");
     mk("❓ Quiz me", "Giulia asks you questions about this card, one at a time, and marks your answers", () => ask("Quiz me on this card. Ask me ONE question at a time — mix Italian→English, English→Italian and fill-the-gap — wait for my answer, mark it (✓ or ✗ with the correct answer and a one-line reason), then ask the next. After 5 questions give me a score out of 5 and tell me what to review.", "❓ Quiz me on this card"));
-    mk("✏️ Exercises", "The self-marking exercises for this card", () => ParlaExercises.openSet(c.id, () => open(c.id)));
+    if (c.onExercises) mk("✏️ Exercises", "Practise this section", () => { close(); c.onExercises(); });
+    else if (!c.custom) mk("✏️ Exercises", "The self-marking exercises for this card", () => ParlaExercises.openSet(c.id, () => open(c.id)));
     if (c.topic && TOPICS[c.topic]) mk("🗣 Talk it through", "Practise this in a spoken conversation with Giulia", () => { close(); const sel = el("topicSel"); sel.value = c.topic; sel.dispatchEvent(new Event("change")); });
+    if (window.ParlaSheets && ParlaSheets.isUser(c.id)) {
+      mk("🖼 Sheet", "See the picture of this sheet", () => ParlaSheets.showImage(c.id));
+      mk("🗑 Remove", "Remove this added sheet from the app", async () => { if (!confirm("Remove “" + c.title + "” and its exercises from Parla?")) return; await ParlaSheets.remove(c.id); showList(); });
+    }
+    const sheets = window.ParlaGram && !c.custom ? ParlaGram.chartsFor(c.id) : [];
+    sheets.forEach(ch => mk("🖼 Sheet: " + ch.en, "See your reference sheet for this card", () => ParlaGram.showChart(ch)));
     const studied = state[c.id] && state[c.id].studied;
     const sb = mk(studied ? "✓ Studied" : "Mark as studied", "Tick this card off", () => {
       state[c.id] = { studied: !(state[c.id] && state[c.id].studied), when: Date.now() };
@@ -281,6 +293,8 @@ ${cardText(c)}`;
   if (btn) btn.addEventListener("click", () => open());
   window.ParlaCards = {
     open, close, cards, cardText,
+    refresh: () => { CARDS = null; },
+    openCustom: (c) => { custom[c.id] = { ...c, custom: true }; open(c.id); },
     heard: (text, err) => { const fn = heardHandler; heardHandler = null; if (fn) fn(text, err); },
   };
 })();

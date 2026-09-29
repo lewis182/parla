@@ -58,6 +58,7 @@ function countMistakeArea(id) {
     speechSynthesis.cancel();
     try { if (recognizing) cancelRecording(); } catch {}
     if (window.cardsActive && window.ParlaCards) ParlaCards.close();
+    if (window.gramActive && window.ParlaGram) ParlaGram.close();
     ["stage", "micbar", "voicePanel", "setup"].forEach(id => el(id).classList.add("hidden"));
     chatEl.classList.add("hidden");
     archiveConvo();
@@ -188,7 +189,7 @@ function countMistakeArea(id) {
 
     /* backup */
     const s5 = section("Move your progress between devices");
-    s5.appendChild($("div", "pg-note", "Export saves your words, scores, streak and conversations to a file (your API key is NOT included). Import it on the other device — it replaces that device's progress."));
+    s5.appendChild($("div", "pg-note", "Export saves your words, scores, streak, conversations, course and trainer progress and any sheets you've added (with their pictures) to a file — your API key is NOT included. Import it on the other device — it replaces that device's progress."));
     const brow = $("div", "row");
     const ex = $("button", "ghost", "⬇ Export progress"); ex.onclick = exportProgress;
     const imp = $("button", "ghost", "⬆ Import progress…");
@@ -217,13 +218,16 @@ function countMistakeArea(id) {
     card.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function exportProgress() {
+  // what travels in an export: all Parla progress + Grammatica's vocab progress — never the API key
+  const exportable = (k) => (k.startsWith("parla_") && k !== "parla_or_key") || (k.startsWith("itg.") && !k.startsWith("itg.or."));
+  async function exportProgress() {
     archiveConvo();
     const data = { app: "parla", version: 1, exported: new Date().toISOString(), data: {} };
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k.startsWith("parla_") && k !== "parla_or_key") data.data[k] = localStorage.getItem(k);
+      if (exportable(k)) data.data[k] = localStorage.getItem(k);
     }
+    try { if (window.ParlaSheets) data.images = await ParlaSheets.exportImages(); } catch {}
     const blob = new Blob([JSON.stringify(data, null, 1)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -233,12 +237,13 @@ function countMistakeArea(id) {
   }
   function importProgress(f) {
     const r = new FileReader();
-    r.onload = () => {
+    r.onload = async () => {
       let data;
       try { data = JSON.parse(r.result); } catch { alertBox("That file isn't a Parla progress file."); return; }
       if (!data || data.app !== "parla" || !data.data) { alertBox("That file isn't a Parla progress file."); return; }
       if (!confirm("Replace this device's Parla progress with the file from " + (data.exported || "").slice(0, 10) + "?")) return;
-      Object.keys(data.data).forEach(k => { if (k.startsWith("parla_") && k !== "parla_or_key") localStorage.setItem(k, data.data[k]); });
+      Object.keys(data.data).forEach(k => { if (exportable(k)) localStorage.setItem(k, data.data[k]); });
+      try { if (data.images && window.ParlaSheets) await ParlaSheets.importImages(data.images); } catch {}
       location.reload();
     };
     r.readAsText(f);

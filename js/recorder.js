@@ -105,10 +105,10 @@ async function onRecordingStop() {
   const mode = recordMode;
   recordMode = "chat";                                   // always reset; practiceTarget handled below
   // 🎤 answers in Exercises and 🎙 questions in Cards go back to their own panel
-  const panelMode = mode === "exercise" || mode === "cardAsk";
+  const panelMode = mode === "exercise" || mode === "cardAsk" || mode === "trainer";
   const toExercise = (text, err) => {
     Avatar.setState("idle");
-    const target = mode === "cardAsk" ? window.ParlaCards : window.ParlaExercises;
+    const target = mode === "cardAsk" ? window.ParlaCards : mode === "trainer" ? window.ParlaTrainer : window.ParlaExercises;
     if (target) target.heard(text, err);
   };
   if (recordingCancelled) {
@@ -184,7 +184,7 @@ micEl.addEventListener("click", () => {
 
 // In hands-free mode, start the next turn automatically once Giulia finishes speaking.
 function maybeAutoListen() {
-  if (window.exActive || window.cardsActive) return;   // never open the mic behind the Exercises / Cards panels       // never start the mic while the Exercises panel is open
+  if (window.exActive || window.cardsActive || window.gramActive) return;   // never open the mic behind the Exercises / Cards panels       // never start the mic while the Exercises panel is open
   if (handsFree && !recognizing && !micEl.disabled) startRecording();
 }
 
